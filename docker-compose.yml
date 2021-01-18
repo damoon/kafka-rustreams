@@ -4,7 +4,7 @@ services:
 
   zookeeper:
     build:
-      context: docker/zookeeper
+      context: service-dependencies/docker/zookeeper
     networks:
       - event-store
     read_only: true
@@ -19,7 +19,7 @@ services:
 
   kafka:
     build:
-      context: docker/kafka
+      context: service-dependencies/docker/kafka
     ports:
       - '9092:9092'
     networks:
