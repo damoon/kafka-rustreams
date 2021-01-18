@@ -1,0 +1,46 @@
+version: '3.7'
+
+services:
+
+  zookeeper:
+    build:
+      context: docker/zookeeper
+    networks:
+      - event-store
+    read_only: true
+    volumes:
+      - 'zookeeper_data:/bitnami'
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    user: '65535'
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+
+  kafka:
+    build:
+      context: docker/kafka
+    ports:
+      - '9092:9092'
+    networks:
+      - event-store
+    read_only: true
+    volumes:
+      - 'kafka_data:/bitnami'
+    environment:
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    user: '65535'
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+
+volumes:
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local
+
+networks:
+  event-store:
+    driver: bridge
