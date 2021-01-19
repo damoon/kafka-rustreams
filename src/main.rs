@@ -107,12 +107,18 @@ enum IsolationLevel {
     ReadCommitted,
 }
 
-fn count_records(topic: &str, iso: IsolationLevel) -> Result<usize, KafkaError> {
-    let consumer = create_consumer(Some(hashmap! {
-        "isolation.level" => match iso {
+impl IsolationLevel {
+    fn to_string(&self) -> &str {
+        match self {
             IsolationLevel::ReadUncommitted => "read_uncommitted",
             IsolationLevel::ReadCommitted => "read_committed",
-        },
+        }
+    }
+}
+
+fn count_records(topic: &str, iso: IsolationLevel) -> Result<usize, KafkaError> {
+    let consumer = create_consumer(Some(hashmap! {
+        "isolation.level" => iso.to_string(),
         "enable.partition.eof" => "true"
     }))?;
     let mut tpl = TopicPartitionList::new();
