@@ -4,7 +4,7 @@ Kafka streams in rust.
 
 `docker-compose up`
 
-`export KAFKA_HOST=127.0.0.1:9092`
+`KAFKA_HOST=127.0.0.1:9092 RUST_LOG=warn,kafka_rustreams=info cargo run`
 
 `cargo run --example generate_random`
 

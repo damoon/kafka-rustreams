@@ -1,13 +1,13 @@
 use std::collections::HashMap;
-use std::error::Error;
 use std::env;
+use std::error::Error;
 use std::time::Duration;
 
 use rand::Rng;
 
-use maplit::hashmap;
 use env_logger::{self, from_env};
-use log::{debug, error, log_enabled, info, Level};
+use log::{debug, error, info, log_enabled, Level};
+use maplit::hashmap;
 
 use rdkafka::admin::{AdminClient, AdminOptions, NewTopic, TopicReplication};
 use rdkafka::client::ClientContext;
@@ -15,17 +15,20 @@ use rdkafka::config::ClientConfig;
 use rdkafka::config::RDKafkaLogLevel;
 use rdkafka::consumer::{BaseConsumer, CommitMode, Consumer};
 use rdkafka::error::KafkaError;
-use rdkafka::producer::{BaseProducer, BaseRecord, Producer};
-use rdkafka::topic_partition_list::{Offset, TopicPartitionList};
-use rdkafka::util::Timeout;
 use rdkafka::message::ToBytes;
+use rdkafka::producer::{BaseProducer, BaseRecord, Producer};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::statistics::Statistics;
+use rdkafka::topic_partition_list::{Offset, TopicPartitionList};
+use rdkafka::util::Timeout;
 use rdkafka::Message;
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::Builder::new().parse_env("RUST_LOG").format_timestamp_millis().init();
+    env_logger::Builder::new()
+        .parse_env("RUST_LOG")
+        .format_timestamp_millis()
+        .init();
     test_transaction_commit().await
 }
 
@@ -127,7 +130,7 @@ fn count_records(topic: &str, iso: IsolationLevel) -> Result<usize, KafkaError> 
     let mut count = 0;
     for message in consumer.iter() {
         match message {
-            Ok(_m) =>  {
+            Ok(_m) => {
                 //let s = m.payload_view::<str>().expect("not a string");
                 //println!("message: {:?}", s);
 
@@ -136,19 +139,19 @@ fn count_records(topic: &str, iso: IsolationLevel) -> Result<usize, KafkaError> 
                 //     None => println!("no message found"),
                 // };
                 count += 1
-            },
+            }
             Err(KafkaError::PartitionEOF(_)) => break,
             Err(e) => {
                 println!("error: {:?}", e);
-                return Err(e)
-            },
+                return Err(e);
+            }
         }
     }
     Ok(count)
 }
 
 pub async fn create_topic(name: &str, partitions: i32) {
-    let client: AdminClient<_> = consumer_config("create_topic", None).create().unwrap();
+    let client: AdminClient<_> = admin_config(None).create().unwrap();
     client
         .create_topics(
             &[NewTopic::new(name, partitions, TopicReplication::Fixed(1))],
@@ -156,6 +159,24 @@ pub async fn create_topic(name: &str, partitions: i32) {
         )
         .await
         .unwrap();
+}
+
+pub fn admin_config(config_overrides: Option<HashMap<&str, &str>>) -> ClientConfig {
+    let mut config = ClientConfig::new();
+
+    config.set("client.id", "rdkafka_integration_test_client");
+    config.set("bootstrap.servers", get_bootstrap_server().as_str());
+    config.set("statistics.interval.ms", "500");
+    config.set("api.version.request", "true");
+    config.set("debug", "all");
+
+    if let Some(overrides) = config_overrides {
+        for (key, value) in overrides {
+            config.set(key, value);
+        }
+    }
+
+    config
 }
 
 pub struct ProducerTestContext {
@@ -276,7 +297,7 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     let mut txn_tpl = TopicPartitionList::new();
     txn_tpl.add_partition_offset(&consume_topic, 0, Offset::Offset(20))?;
     producer.send_offsets_to_transaction(&txn_tpl, &cgm, Timeout::Never)?;
-    
+
     // Produce 10 records in the transaction.
     log::info!("Produce 10 records in the transaction.");
     for _ in 0..100000 {
