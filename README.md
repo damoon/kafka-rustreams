@@ -13,3 +13,12 @@ Kafka streams in rust.
 `cargo run --example insert`
 
 `cargo run --example copy`
+
+
+## Learnings
+
+Seeking to offset 0 is not allowed. Use Offset::Beginning instead.
+
+The current offset is only available once the consumer was polled.
+
+The first transaction commit of a producer is slower, even when the topic exists and has messages.

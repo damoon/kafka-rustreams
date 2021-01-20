@@ -23,6 +23,10 @@ use rdkafka::topic_partition_list::{Offset, TopicPartitionList};
 use rdkafka::util::Timeout;
 use rdkafka::Message;
 
+const ROUNDS: usize = 10;
+const MESSAGES: usize = 100000;
+
+
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::new()
@@ -119,14 +123,14 @@ impl IsolationLevel {
     }
 }
 
-fn count_records(topic: &str, iso: IsolationLevel) -> Result<usize, KafkaError> {
-    let consumer = create_consumer(Some(hashmap! {
-        "isolation.level" => iso.to_string(),
-        "enable.partition.eof" => "true"
-    }))?;
-    let mut tpl = TopicPartitionList::new();
-    tpl.add_partition(topic, 0);
-    consumer.assign(&tpl)?;
+fn count_records(consumer: &BaseConsumer, topic: &str, iso: IsolationLevel) -> Result<usize, KafkaError> {
+    log::info!("Seek to beginning.");
+    consumer.poll(Timeout::Never);
+    let offset = consumer.position()?.find_partition(topic, 0).unwrap().offset();
+    if offset != rdkafka::Offset::Beginning {
+        consumer.seek(topic, 0, rdkafka::Offset::Beginning, Timeout::Never)?;
+    }
+
     let mut count = 0;
     for message in consumer.iter() {
         match message {
@@ -264,6 +268,8 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     log::info!("init");
     let consume_topic = rand_test_topic();
     let produce_topic = rand_test_topic();
+//    let consume_topic = String::from("consume_topic");
+//    let produce_topic = String::from("produce_topic");
 
     log::info!("Create `consume_topic`.");
     create_topic(consume_topic.as_str(), 1).await;
@@ -279,6 +285,31 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     consumer.subscribe(&[&consume_topic])?;
     consumer.poll(Timeout::Never).unwrap()?;
 
+
+    log::info!("Create consumer for counting committed messages.");
+    let consumer_counting_committed = create_consumer(Some(hashmap! {
+        "isolation.level" => IsolationLevel::ReadCommitted.to_string(),
+        "enable.partition.eof" => "true"
+    }))?;
+    let mut tpl = TopicPartitionList::new();
+    tpl.add_partition(produce_topic.as_str(), 0);
+    consumer_counting_committed.assign(&tpl)?;
+
+    log::info!("Count comitted messages.");
+    let commited_count = count_records(&consumer_counting_committed, &produce_topic, IsolationLevel::ReadCommitted)?;
+
+    log::info!("Create consumer for counting uncommitted messages.");
+    let consumer_counting_uncommitted = create_consumer(Some(hashmap! {
+        "isolation.level" => IsolationLevel::ReadUncommitted.to_string(),
+        "enable.partition.eof" => "true"
+    }))?;
+    let mut tpl = TopicPartitionList::new();
+    tpl.add_partition(produce_topic.as_str(), 0);
+    consumer_counting_uncommitted.assign(&tpl)?;
+
+    log::info!("Count uncomitted messages.");
+    let uncommited_count = count_records(&consumer_counting_uncommitted, &produce_topic, IsolationLevel::ReadUncommitted)?;
+
     // Commit the first 10 messages.
     log::info!("Commit the first 10 messages.");
     let mut commit_tpl = TopicPartitionList::new();
@@ -286,45 +317,50 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     consumer.commit(&commit_tpl, CommitMode::Sync).unwrap();
 
     // Create a producer and start a transaction.
-    log::info!("Create a producer and start a transaction.");
+    log::info!("Create a producer and clean up incomplete transactions.");
     let producer = create_producer()?;
     producer.init_transactions(Timeout::Never)?;
-    producer.begin_transaction()?;
 
-    // Tie the commit of offset 20 to the transaction.
-    log::info!("Tie the commit of offset 20 to the transaction.");
-    let cgm = consumer.group_metadata().unwrap();
-    let mut txn_tpl = TopicPartitionList::new();
-    txn_tpl.add_partition_offset(&consume_topic, 0, Offset::Offset(20))?;
-    producer.send_offsets_to_transaction(&txn_tpl, &cgm, Timeout::Never)?;
 
-    // Produce 10 records in the transaction.
-    log::info!("Produce 10 records in the transaction.");
-    for _ in 0..100000 {
-        producer
-            .send(
-                BaseRecord::to(&produce_topic)
-                    .payload("A")
-                    .key("B")
-                    .partition(0),
-            )
-            .unwrap();
+    for _ in 0..ROUNDS {
+        log::info!("Start a transaction.");
+        producer.begin_transaction()?;
+
+        // Produce 10 records in the transaction.
+        log::info!("Produce 10 records in the transaction.");
+        for _ in 0..MESSAGES {
+            producer
+                .send(
+                    BaseRecord::to(&produce_topic)
+                        .payload("A")
+                        .key("B")
+                        .partition(0),
+                )
+                .unwrap();
+        }
+
+        // Tie the commit of offset 20 to the transaction.
+        log::info!("Tie the commit of offset 20 to the transaction.");
+        let cgm = consumer.group_metadata().unwrap();
+        let mut txn_tpl = TopicPartitionList::new();
+        txn_tpl.add_partition_offset(&consume_topic, 0, Offset::Offset(20))?;
+        producer.send_offsets_to_transaction(&txn_tpl, &cgm, Timeout::Never)?;
+
+        // Commit the transaction.
+        log::info!("Commit the transaction.");
+        producer.commit_transaction(Timeout::Never)?;
     }
 
-    // Commit the transaction.
-    log::info!("Commit the transaction.");
-    producer.commit_transaction(Timeout::Never)?;
-
     // Check that 10 records were produced.
-    log::info!("Check that 10 records were produced. 1/2");
+    log::info!("Check that {} uncommited records were produced.", ROUNDS * MESSAGES);
     assert_eq!(
-        count_records(&produce_topic, IsolationLevel::ReadUncommitted)?,
-        100000,
+        count_records(&consumer_counting_uncommitted, &produce_topic, IsolationLevel::ReadUncommitted)? - uncommited_count,
+        ROUNDS * MESSAGES,
     );
-    log::info!("Check that 10 records were produced. 2/2");
+    log::info!("Check that {} commited records were produced.", ROUNDS * MESSAGES);
     assert_eq!(
-        count_records(&produce_topic, IsolationLevel::ReadCommitted)?,
-        100000,
+        count_records(&consumer_counting_committed, &produce_topic, IsolationLevel::ReadCommitted)? - commited_count,
+        ROUNDS * MESSAGES,
     );
 
     // Check that the consumer's committed offset is now 20.
