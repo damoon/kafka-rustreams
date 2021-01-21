@@ -73,6 +73,7 @@ pub fn consumer_config(
 
     config.set("group.id", group_id);
     config.set("client.id", "rdkafka_integration_test_client");
+    config.set("group.instance.id", "testing-node");
     config.set("bootstrap.servers", get_bootstrap_server().as_str());
     config.set("enable.partition.eof", "false");
     config.set("session.timeout.ms", "6000");
