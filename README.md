@@ -14,6 +14,8 @@ Kafka streams in rust.
 
 `cargo run --example copy`
 
+`time taskset 0x1 cargo run --release --example channel3`
+
 
 ## Learnings
 
@@ -22,3 +24,5 @@ Seeking to offset 0 is not allowed. Use Offset::Beginning instead.
 The current offset is only available once the consumer was polled.
 
 The first transaction commit of a producer is slower, even when the topic exists and has messages.
+
+Keeping the process pinned to a CPU core improves single threaded performance a lot.
