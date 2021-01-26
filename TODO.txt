@@ -1,0 +1,16 @@
+
+
+* be able to drain the process pipeline [https://rust-lang.github.io/async-book/06_multiple_futures/03_select.html]
+* drain and flush periodically to stay, including commit, within 100ms
+* clean shutdown [https://docs.rs/tokio/1.1.0/tokio/signal/index.html]
+* transactional copy
+* de/serialize json, avro, and protobuf
+
+* stateless operations
+* statefull operations
+
+* configure tokio to run the number of workers that fit the the cgroup cpu limit [https://blog.logrocket.com/a-practical-guide-to-async-in-rust/]
+* views accessable via http [https://github.com/jonhoo/left-right]
+* /metrics endpoint
+* /health endpoint
+* debug ui: select offset to load

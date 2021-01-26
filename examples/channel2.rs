@@ -9,56 +9,98 @@ use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() {
-    //let (sender, receiver) = unbounded_channel();
-    let (tx1, mut rx1) = channel(1);
+    let (tx, rx) = channel(1);
 
-    let s1 = Stream { rx: rx1 };
+    let stream = Stream { rx };
 
     tokio::spawn(async move {
-        for _ in 0..1000000 {
-            tx1.send("sending from second handle")
+        for _ in 0..1_000 {
+            tx.send("sending from second handle")
                 .await
                 .expect("sending failed");
         }
     });
 
-    let mut s2 = s1.map(Box::new(|v1: &str| -> usize { v1.len() }));
+    let mut stream: Stream<usize> = stream.map(|v1: &str| -> usize { v1.len() }).map(times_two);
 
     let mut i = 0;
-    while let Some(message) = s2.rx.recv().await {
+    while let Some(message) = stream.recv().await {
         // println!("GOT = {}", message);
         i = i + message;
     }
     println!("C = {}", i);
 }
 
+fn times_two(i: usize) -> usize {
+    i * 2
+}
+
 struct Stream<V> {
     rx: Receiver<V>,
 }
-trait NewTrait<V1, V2>: Sized + Send + FnMut(V1) -> V2 {}
 
-trait Mapper<V1, V2>: Sized {
-    fn map1(&mut self, m: dyn FnMut(V1) -> V2 + Send) -> Stream<V2>;
+impl<V> Stream<V> {
+    async fn recv(&mut self) -> Option<V> {
+        self.rx.recv().await
+    }
+
+    fn poll_recv(&mut self) -> futures::task::Poll<Option<V>> {
+        use futures::task::{noop_waker, Context, Poll};
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        self.rx.poll_recv(&mut cx)
+    }
+}
+
+trait Mapper<V1, V2> {
+    fn map(self, m: impl Send + 'static + Fn(V1) -> V2) -> Stream<V2>;
 }
 
 impl<V1: Send + 'static, V2: Send + 'static> Mapper<V1, V2> for Stream<V1> {
-    fn map1(&mut self, m: dyn FnMut(V1) -> V2 + Send) -> Stream<V2>
-    where
-        Self: Sized,
-    {
-        let (tx2, rx2) = channel(1);
-        let s: Stream<V2> = Stream { rx: rx2 };
-        let m2 = Box::new(m);
+    fn map(mut self, map: impl Send + 'static + Fn(V1) -> V2) -> Stream<V2> {
+        let (tx, rx) = channel::<V2>(1);
 
         tokio::spawn(async move {
+            let ten_millis = std::time::Duration::from_millis(10);
+            std::thread::sleep(ten_millis);
+
+            use futures::task::Poll;
+            match self.poll_recv() {
+                Poll::Pending => {
+                    println!("pending")
+                }
+                Poll::Ready(Some(message)) => {
+                    println!("msg");
+                    let new_message = map(message);
+                    if let Err(e) = tx.send(new_message).await {
+                        panic!("failed to send: {}", e);
+                    }
+                }
+                Poll::Ready(None) => {
+                    println!("closed")
+                }
+            };
+
             while let Some(message) = self.rx.recv().await {
-                let m3 = m2(message);
-                if let Err(e) = tx2.send(m3).await {
-                    panic!("failed to send");
+                let new_message = map(message);
+                if let Err(e) = tx.send(new_message).await {
+                    panic!("failed to send: {}", e);
                 }
             }
+
+            match self.poll_recv() {
+                Poll::Pending => {
+                    println!("pending")
+                }
+                Poll::Ready(Some(message)) => {
+                    println!("msg")
+                }
+                Poll::Ready(None) => {
+                    println!("closed")
+                }
+            };
         });
 
-        s
+        Stream { rx }
     }
 }

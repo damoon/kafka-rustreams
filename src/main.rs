@@ -26,7 +26,6 @@ use rdkafka::Message;
 const ROUNDS: usize = 10;
 const MESSAGES: usize = 100000;
 
-
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::new()
@@ -124,10 +123,18 @@ impl IsolationLevel {
     }
 }
 
-fn count_records(consumer: &BaseConsumer, topic: &str, iso: IsolationLevel) -> Result<usize, KafkaError> {
+fn count_records(
+    consumer: &BaseConsumer,
+    topic: &str,
+    iso: IsolationLevel,
+) -> Result<usize, KafkaError> {
     log::info!("Seek to beginning.");
     consumer.poll(Timeout::Never);
-    let offset = consumer.position()?.find_partition(topic, 0).unwrap().offset();
+    let offset = consumer
+        .position()?
+        .find_partition(topic, 0)
+        .unwrap()
+        .offset();
     if offset != rdkafka::Offset::Beginning {
         consumer.seek(topic, 0, rdkafka::Offset::Beginning, Timeout::Never)?;
     }
@@ -269,8 +276,8 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     log::info!("init");
     let consume_topic = rand_test_topic();
     let produce_topic = rand_test_topic();
-//    let consume_topic = String::from("consume_topic");
-//    let produce_topic = String::from("produce_topic");
+    //    let consume_topic = String::from("consume_topic");
+    //    let produce_topic = String::from("produce_topic");
 
     log::info!("Create `consume_topic`.");
     create_topic(consume_topic.as_str(), 1).await;
@@ -286,7 +293,6 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     consumer.subscribe(&[&consume_topic])?;
     consumer.poll(Timeout::Never).unwrap()?;
 
-
     log::info!("Create consumer for counting committed messages.");
     let consumer_counting_committed = create_consumer(Some(hashmap! {
         "isolation.level" => IsolationLevel::ReadCommitted.to_string(),
@@ -297,7 +303,11 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     consumer_counting_committed.assign(&tpl)?;
 
     log::info!("Count comitted messages.");
-    let commited_count = count_records(&consumer_counting_committed, &produce_topic, IsolationLevel::ReadCommitted)?;
+    let commited_count = count_records(
+        &consumer_counting_committed,
+        &produce_topic,
+        IsolationLevel::ReadCommitted,
+    )?;
 
     log::info!("Create consumer for counting uncommitted messages.");
     let consumer_counting_uncommitted = create_consumer(Some(hashmap! {
@@ -309,7 +319,11 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     consumer_counting_uncommitted.assign(&tpl)?;
 
     log::info!("Count uncomitted messages.");
-    let uncommited_count = count_records(&consumer_counting_uncommitted, &produce_topic, IsolationLevel::ReadUncommitted)?;
+    let uncommited_count = count_records(
+        &consumer_counting_uncommitted,
+        &produce_topic,
+        IsolationLevel::ReadUncommitted,
+    )?;
 
     // Commit the first 10 messages.
     log::info!("Commit the first 10 messages.");
@@ -321,7 +335,6 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     log::info!("Create a producer and clean up incomplete transactions.");
     let producer = create_producer()?;
     producer.init_transactions(Timeout::Never)?;
-
 
     for _ in 0..ROUNDS {
         log::info!("Start a transaction.");
@@ -353,14 +366,28 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     }
 
     // Check that 10 records were produced.
-    log::info!("Check that {} uncommited records were produced.", ROUNDS * MESSAGES);
+    log::info!(
+        "Check that {} uncommited records were produced.",
+        ROUNDS * MESSAGES
+    );
     assert_eq!(
-        count_records(&consumer_counting_uncommitted, &produce_topic, IsolationLevel::ReadUncommitted)? - uncommited_count,
+        count_records(
+            &consumer_counting_uncommitted,
+            &produce_topic,
+            IsolationLevel::ReadUncommitted
+        )? - uncommited_count,
         ROUNDS * MESSAGES,
     );
-    log::info!("Check that {} commited records were produced.", ROUNDS * MESSAGES);
+    log::info!(
+        "Check that {} commited records were produced.",
+        ROUNDS * MESSAGES
+    );
     assert_eq!(
-        count_records(&consumer_counting_committed, &produce_topic, IsolationLevel::ReadCommitted)? - commited_count,
+        count_records(
+            &consumer_counting_committed,
+            &produce_topic,
+            IsolationLevel::ReadCommitted
+        )? - commited_count,
         ROUNDS * MESSAGES,
     );
 
