@@ -9,7 +9,7 @@
 * stateless operations
 * statefull operations
 
-* configure tokio to run the number of workers that fit the the cgroup cpu limit [https://blog.logrocket.com/a-practical-guide-to-async-in-rust/]
+* configure tokio to run the number of workers that fit the the cgroup cpu limit [https://blog.logrocket.com/a-practical-guide-to-async-in-rust/] [https://blog.logrocket.com/asynchronous-i-o-and-async-await-packages-in-rust/]
 * views accessable via http [https://github.com/jonhoo/left-right]
 * /metrics endpoint
 * /health endpoint
