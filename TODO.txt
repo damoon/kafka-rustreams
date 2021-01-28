@@ -6,6 +6,7 @@
 * transactional copy
 * de/serialize json, avro, and protobuf
 * generate graphviz dot output [https://stackoverflow.com/questions/38088067/equivalent-of-func-or-function-in-rust]
+* ensure librdkafka and kafka streams java client use the same hash function for partitioning
 
 * stateless operations [https://kafka.apache.org/27/documentation/streams/developer-guide/dsl-api.html#stateless-transformations]
 * statefull operations [https://kafka.apache.org/27/documentation/streams/developer-guide/dsl-api.html#streams-developer-guide-dsl-transformations-stateful]
