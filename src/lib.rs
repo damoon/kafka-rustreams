@@ -1,5 +1,3 @@
-#![feature(in_band_lifetimes)]
-
 use std::{borrow::Borrow, time::Duration};
 use tokio::{task::JoinHandle, time::sleep};
 
@@ -11,66 +9,29 @@ use tokio::sync::Semaphore;
 
 use std::collections::HashMap;
 
-pub struct Streams<'a> {
-    tx: Option<oneshot::Sender<()>>,
-    task: Option<JoinHandle<()>>,
+pub mod kafka;
+pub mod testing;
+
+pub struct Topology<'a> {
     streams: HashMap<&'a str, Sender<Option<&'a [u8]>>>,
 }
 
-pub struct Stream<V> {
+pub struct Stream<'a, V> {
+    tx: Sender<&'a [u8]>,
     rx: Receiver<V>,
 }
 
-impl<'a> Streams<'a> {
-    pub fn new() -> Streams<'a> {
+impl<'a> Topology<'a> {
+    pub fn new() -> Topology<'a> {
+        let (tx, rx) = channel(1);
         let streams = HashMap::new();
-        Streams {
-            tx: None,
-            task: None,
-            streams,
-        }
+        Topology { streams }
     }
 
-    pub fn read(&mut self, topic_name: &'a str) -> Stream<Option<&'a [u8]>> {
+    pub fn readFrom(&mut self, topic_name: &'a str) -> Stream<Option<&'a [u8]>> {
         let (tx, rx) = channel(1);
         self.streams.insert(topic_name, tx);
-        Stream::<Option<&[u8]>> { rx }
-    }
-
-    pub async fn start(&mut self) {
-        use tokio::sync::oneshot::error::TryRecvError;
-        // TODO
-        // create kafka consumer
-        // register topics
-
-        let (tx, mut rx) = oneshot::channel::<()>();
-        self.tx = Some(tx);
-
-        self.task = Some(tokio::spawn(async move {
-            // until shutting down
-            while let Err(TryRecvError::Empty) = rx.try_recv() {
-                // begin_transaction
-                // read and process messages for 100ms
-                // commit
-            }
-        }));
-    }
-
-    pub async fn stop(mut self) {
-        if self.task.is_none() || self.tx.is_none() {
-            panic!("streams not running")
-        }
-
-        println!("shutting down");
-        self.tx
-            .unwrap()
-            .send(())
-            .expect("failed to signal shutdown");
-        self.task
-            .unwrap()
-            .await
-            .expect("failed to wait for shutdown");
-        println!("shut down complete");
+        Stream::<Option<&[u8]>> { topology: self, rx }
     }
 }
 
@@ -86,7 +47,7 @@ impl<V> Stream<V> {
         self.rx.poll_recv(&mut cx)
     }
 
-    fn write(mut self, topic_name: &str) {
+    pub fn writeTo(mut self, topic_name: &str) {
         // TODO
     }
 }
