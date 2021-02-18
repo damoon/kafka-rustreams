@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, time::Duration};
+use std::{borrow::Borrow, option, time::Duration};
 use tokio::{task::JoinHandle, time::sleep};
 
 use std::sync::Arc;
@@ -16,26 +16,24 @@ pub struct Topology<'a> {
     streams: HashMap<&'a str, Sender<Option<&'a [u8]>>>,
 }
 
-pub struct Stream<'a, V> {
-    tx: Sender<&'a [u8]>,
+pub struct Stream<V> {
     rx: Receiver<V>,
 }
 
 impl<'a> Topology<'a> {
     pub fn new() -> Topology<'a> {
-        let (tx, rx) = channel(1);
         let streams = HashMap::new();
         Topology { streams }
     }
 
-    pub fn readFrom(&mut self, topic_name: &'a str) -> Stream<Option<&'a [u8]>> {
+    pub fn read_from(&mut self, topic_name: &'a str) -> Stream<Option<&'a [u8]>> {
         let (tx, rx) = channel(1);
         self.streams.insert(topic_name, tx);
-        Stream::<Option<&[u8]>> { topology: self, rx }
+        Stream::<Option<&[u8]>> { rx }
     }
 }
 
-impl<V> Stream<V> {
+impl<'a, V> Stream<V> {
     async fn recv(&mut self) -> Option<V> {
         self.rx.recv().await
     }
@@ -47,16 +45,16 @@ impl<V> Stream<V> {
         self.rx.poll_recv(&mut cx)
     }
 
-    pub fn writeTo(mut self, topic_name: &str) {
+    pub fn write_to(self, topic_name: &str) {
         // TODO
     }
 }
 
-pub trait Mapper<V1, V2> {
+pub trait Mapper<'a, V1, V2> {
     fn map(self, m: impl Send + 'static + Fn(V1) -> V2) -> Stream<V2>;
 }
 
-impl<V1: Send + 'static, V2: Send + 'static> Mapper<V1, V2> for Stream<V1> {
+impl<'a, V1: Send + 'static, V2: Send + 'static> Mapper<'a, V1, V2> for Stream<V1> {
     fn map(mut self, map: impl Send + 'static + Fn(V1) -> V2) -> Stream<V2> {
         let (tx, rx) = channel::<V2>(1);
 
@@ -75,25 +73,6 @@ impl<V1: Send + 'static, V2: Send + 'static> Mapper<V1, V2> for Stream<V1> {
                     if let Err(e) = tx.send(new_message).await {
                         panic!("failed to send: {}", e);
                     }
-                }
-                Poll::Ready(None) => {
-                    println!("closed")
-                }
-            };
-
-            while let Some(message) = self.rx.recv().await {
-                let new_message = map(message);
-                if let Err(e) = tx.send(new_message).await {
-                    panic!("failed to send: {}", e);
-                }
-            }
-
-            match self.poll_recv() {
-                Poll::Pending => {
-                    println!("pending")
-                }
-                Poll::Ready(Some(message)) => {
-                    println!("msg")
                 }
                 Poll::Ready(None) => {
                     println!("closed")
