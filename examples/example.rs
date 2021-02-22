@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 
 use tokio::signal;
 
-use rustreams::testing::TestDriver;
+use rustreams::in_memory;
 use rustreams::Mapper;
 use rustreams::Topology;
 
@@ -19,11 +19,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     input1.write_to("output1");
     length2.write_to("output2");
 
-    let mut test_env = TestDriver::new();
-    test_env.evalute(topology);
+    let mut app = in_memory::Driver::new(topology);
 
-    //    streams.start().await;
-    //    signal::ctrl_c().await?;
-    //    streams.stop().await;
+    app.start().await;
+
+    app.publish("input1", Some("test1".as_bytes()));
+    
+    // signal::ctrl_c().await?;
+    
+    app.await_eot();
+
+    app.stop().await;
+    
     Ok(())
 }

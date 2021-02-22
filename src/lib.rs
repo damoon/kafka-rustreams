@@ -10,7 +10,7 @@ use tokio::sync::Semaphore;
 use std::collections::HashMap;
 
 pub mod kafka;
-pub mod testing;
+pub mod in_memory;
 
 pub struct Topology<'a> {
     streams: HashMap<&'a str, Sender<Option<&'a [u8]>>>,
