@@ -3,8 +3,11 @@ use std::borrow::Borrow;
 use tokio::signal;
 
 use rustreams::in_memory;
+use rustreams::Driver;
 use rustreams::Mapper;
 use rustreams::Topology;
+
+use async_trait::async_trait;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,12 +27,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.start().await;
 
     app.publish("input1", Some("test1".as_bytes()));
-    
+
     // signal::ctrl_c().await?;
-    
+
     app.await_eot();
 
     app.stop().await;
-    
+
     Ok(())
 }
