@@ -11,19 +11,9 @@ use std::collections::HashMap;
 
 pub mod in_memory;
 pub mod kafka;
-
-use async_trait::async_trait;
-
-#[async_trait]
-pub trait Driver<'a> {
-    fn publish(&mut self, topic: &str, msg: Option<&'a [u8]>);
-
-    fn await_eot(&mut self);
-
-    async fn start(&mut self);
-
-    async fn stop(self);
-}
+pub mod postgresql;
+pub mod driver;
+pub mod example_topologies;
 
 pub struct Topology<'a> {
     streams: HashMap<&'a str, Sender<Option<&'a [u8]>>>,
