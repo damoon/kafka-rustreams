@@ -10,28 +10,72 @@ use tokio::sync::Semaphore;
 
 use std::collections::HashMap;
 
+// use rdkafka::message::{Message, OwnedMessage};
+use rdkafka::message::Timestamp;
+
 pub mod driver;
 pub mod example_topologies;
 pub mod in_memory;
 pub mod kafka;
 pub mod postgresql;
 
-pub struct Topology<'a> {
-    streams: HashMap<&'a str, Sender<Option<&'a [u8]>>>,
+
+#[derive(Debug, Clone)]
+pub struct Message {
+    payload: Option<Vec<u8>>,
+    key: Option<Vec<u8>>,
+    topic: String,
+    timestamp: Timestamp,
+    partition: i32,
+    offset: i64,
+    // headers: Option<OwnedHeaders>,
 }
 
-pub struct Stream<V> {
-    rx: Receiver<V>,
+impl Message {
+    /// Creates a new message with the specified content.
+    ///
+    /// This function is mainly useful in tests of `rust-rdkafka` itself.
+    pub fn new(
+        payload: Option<Vec<u8>>,
+        key: Option<Vec<u8>>,
+        topic: String,
+        timestamp: Timestamp,
+        partition: i32,
+        offset: i64,
+        // headers: Option<OwnedHeaders>,
+    ) -> Message {
+        Message {
+            payload,
+            key,
+            topic,
+            timestamp,
+            partition,
+            offset,
+            // headers,
+        }
+    }
 }
 
-impl<'a> Topology<'a> {
-    pub fn new() -> Topology<'a> {
-        let streams = HashMap::new();
-        Topology { streams }
+
+pub struct Topology {
+    inputs: HashMap<&'static str, Sender<Message>>,
+    outputs: HashMap<&'static str, Sender<Message>>,
+}
+
+pub struct Stream {
+    rx: Receiver<Message>,
+    output: Sender<Message>,
+}
+
+impl<'a> Topology {
+    pub fn new() -> Topology {
+        let inputs = HashMap::new();
+        let outputs = HashMap::new();
+        Topology { inputs, outputs }
     }
 
-    pub async fn process_message(self, topic_name: &str, msg: Option<&'a [u8]>) {
-        let topic = self.streams.get(topic_name);
+    pub async fn process_message(self, topic_name: &str, msg: Message) {
+        let topic = self.inputs.get(topic_name);
         match topic {
             None => panic!("topic not registered"),
             Some(sender) => {
@@ -42,14 +86,14 @@ impl<'a> Topology<'a> {
         }
     }
 
-    pub fn read_from(&mut self, topic: &'a str) -> Stream<Option<&'a [u8]>> {
+    pub fn read_from(&mut self, topic: &'static str) -> Stream {
         let (tx, rx) = channel(1);
-        self.streams.insert(topic, tx);
-        Stream::<Option<&[u8]>> { rx }
+        self.inputs.insert(topic, tx);
+        Stream { rx, output: self.outputs }
     }
 }
 
-impl<'a, V> Stream<V> {
+impl<'a, V> Stream<'a, V> {
     async fn recv(&mut self) -> Option<V> {
         self.rx.recv().await
     }
@@ -61,8 +105,15 @@ impl<'a, V> Stream<V> {
         self.rx.poll_recv(&mut cx)
     }
 
-    pub fn write_to(self, topic_name: &str) {
-        // TODO
+    pub fn write_to(&mut self, topic_name: &str) {
+        tokio::spawn(async {
+            loop {
+                match self.rx.recv().await {
+                    None => println!("none"),
+                    Some(_) => println!("some"),
+                };
+            }
+        });
     }
 }
 

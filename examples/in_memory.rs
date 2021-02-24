@@ -8,7 +8,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut app = in_memory::Driver::new(topology);
 
-    app.write_to("input_topic", Some("test1".as_bytes()));
+    app.write_to("input_topic", Some("test1".as_bytes())).await;
 
     Ok(())
 }
