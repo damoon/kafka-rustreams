@@ -146,10 +146,10 @@ fn count_records(
                 //let s = m.payload_view::<str>().expect("not a string");
                 //println!("message: {:?}", s);
 
-                 match m.payload() {
-                     Some(p) => println!("message: {:?}", std::str::from_utf8(p)),
-                     None => println!("no message found"),
-                 };
+                // match m.payload() {
+                //     Some(p) => println!("message: {:?}", std::str::from_utf8(p)),
+                //     None => println!("no message found"),
+                // };
                 count += 1
             }
             Err(KafkaError::PartitionEOF(_)) => break,

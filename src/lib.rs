@@ -19,15 +19,14 @@ pub mod in_memory;
 pub mod kafka;
 pub mod postgresql;
 
-
 #[derive(Debug, Clone)]
 pub struct Message {
-    payload: Option<Vec<u8>>,
-    key: Option<Vec<u8>>,
-    topic: String,
-    timestamp: Timestamp,
-    partition: i32,
-    offset: i64,
+    pub payload: Option<Vec<u8>>,
+    pub key: Option<Vec<u8>>,
+    pub topic: String,
+    pub timestamp: Timestamp,
+    pub partition: i32,
+    pub offset: i64,
     // headers: Option<OwnedHeaders>,
 }
 
@@ -56,10 +55,10 @@ impl Message {
     }
 }
 
-
 pub struct Topology {
     inputs: HashMap<&'static str, Sender<Message>>,
-    outputs: HashMap<&'static str, Sender<Message>>,
+    writes_sink: Sender<Message>,
+    writes_source: Receiver<Message>,
 }
 
 pub struct Stream {
@@ -70,8 +69,12 @@ pub struct Stream {
 impl<'a> Topology {
     pub fn new() -> Topology {
         let inputs = HashMap::new();
-        let outputs = HashMap::new();
-        Topology { inputs, outputs }
+        let (writes_sink, writes_source) = channel(1);
+        Topology {
+            inputs,
+            writes_sink,
+            writes_source,
+        }
     }
 
     pub async fn process_message(self, topic_name: &str, msg: Message) {
@@ -89,34 +92,79 @@ impl<'a> Topology {
     pub fn read_from(&mut self, topic: &'static str) -> Stream {
         let (tx, rx) = channel(1);
         self.inputs.insert(topic, tx);
-        Stream { rx, output: self.outputs }
+        Stream {
+            rx,
+            output: self.writes_sink.clone(),
+        }
     }
 }
 
-impl<'a, V> Stream<'a, V> {
-    async fn recv(&mut self) -> Option<V> {
+impl Stream {
+    async fn recv(&mut self) -> Option<Message> {
         self.rx.recv().await
     }
 
-    fn poll_recv(&mut self) -> futures::task::Poll<Option<V>> {
+    fn poll_recv(&mut self) -> futures::task::Poll<Option<Message>> {
         use futures::task::{noop_waker, Context, Poll};
         let waker = noop_waker();
         let mut cx = Context::from_waker(&waker);
         self.rx.poll_recv(&mut cx)
     }
 
-    pub fn write_to(&mut self, topic_name: &str) {
-        tokio::spawn(async {
+    pub fn write_to(mut self, topic_name: &str) {
+        tokio::spawn(async move {
             loop {
-                match self.rx.recv().await {
-                    None => println!("none"),
-                    Some(_) => println!("some"),
+                /*
+                match self.rx.blocking_recv() {
+                    None => {
+                        println!("closed 1");
+                        return;
+                    }
+                    Some(msg) => self.output.send(msg).await.unwrap(),
+                }
+                */
+
+                /*
+                use futures::task::Poll;
+                match self.poll_recv() {
+                    Poll::Pending => {
+                        //    println!("pending 1")
+                    }
+                    Poll::Ready(Some(message)) => {
+                        println!("msg 1");
+                        self.output
+                            .send(message)
+                            //.send_timeout(message, Duration::from_millis(200))
+                            .await
+                            .unwrap();
+                    }
+                    Poll::Ready(None) => {
+                        println!("closed 1");
+                        return;
+                    }
+                };
+                */
+
+                match self.recv().await {
+                    Some(message) => {
+                        println!("msg 1");
+                        self.output
+                            .send(message)
+                            //.send_timeout(message, Duration::from_millis(200))
+                            .await
+                            .unwrap();
+                    }
+                    None => {
+                        println!("closed 1");
+                        return;
+                    }
                 };
             }
         });
     }
 }
 
+/*
 pub trait Mapper<'a, V1, V2> {
     fn map(self, m: impl Send + 'static + Fn(V1) -> V2) -> Stream<V2>;
 }
@@ -150,3 +198,4 @@ impl<'a, V1: Send + 'static, V2: Send + 'static> Mapper<'a, V1, V2> for Stream<V
         Stream { rx }
     }
 }
+*/
