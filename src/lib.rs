@@ -1,3 +1,4 @@
+use core::panic;
 use std::{borrow::Borrow, option, time::Duration};
 use tokio::{task::JoinHandle, time::sleep};
 
@@ -9,11 +10,11 @@ use tokio::sync::Semaphore;
 
 use std::collections::HashMap;
 
+pub mod driver;
+pub mod example_topologies;
 pub mod in_memory;
 pub mod kafka;
 pub mod postgresql;
-pub mod driver;
-pub mod example_topologies;
 
 pub struct Topology<'a> {
     streams: HashMap<&'a str, Sender<Option<&'a [u8]>>>,
@@ -29,9 +30,21 @@ impl<'a> Topology<'a> {
         Topology { streams }
     }
 
-    pub fn read_from(&mut self, topic_name: &'a str) -> Stream<Option<&'a [u8]>> {
+    pub async fn process_message(self, topic_name: &str, msg: Option<&'a [u8]>) {
+        let topic = self.streams.get(topic_name);
+        match topic {
+            None => panic!("topic not registered"),
+            Some(sender) => {
+                if let Err(e) = sender.send(msg).await {
+                    panic!("failed to send: {}", e);
+                }
+            }
+        }
+    }
+
+    pub fn read_from(&mut self, topic: &'a str) -> Stream<Option<&'a [u8]>> {
         let (tx, rx) = channel(1);
-        self.streams.insert(topic_name, tx);
+        self.streams.insert(topic, tx);
         Stream::<Option<&[u8]>> { rx }
     }
 }
