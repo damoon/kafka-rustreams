@@ -11,9 +11,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut app = in_memory::Driver::new(topology);
 
-    for n in 1..10 {
+    for n in 1..100 {
         let msg = Message {
-            payload: Some(format!("The number is {}", n).as_bytes().to_vec()),
+            payload: Some(format!("hello world {}", n).as_bytes().to_vec()),
             key: None,
             topic: "topic".to_string(),
             timestamp: Timestamp::NotAvailable,

@@ -50,15 +50,15 @@ impl<K, V> Message<K, V> {
 }
 
 trait WithChange<K, V> {
-    fn with_value(self, payload: Option<V>)  -> Message<K, V>;
+    fn with_value(self, payload: Option<V>) -> Message<K, V>;
 }
 
 trait WithTopic<K, V> {
-    fn with_topic(self, topic: String)  -> Message<K, V>;
+    fn with_topic(self, topic: String) -> Message<K, V>;
 }
 
-impl <K, V1, V2> WithChange<K, V2> for Message<K, V1> {
-    fn with_value(self, payload: Option<V2>)  -> Message<K, V2> {
+impl<K, V1, V2> WithChange<K, V2> for Message<K, V1> {
+    fn with_value(self, payload: Option<V2>) -> Message<K, V2> {
         Message::<K, V2> {
             payload: payload,
             key: self.key,
@@ -71,8 +71,8 @@ impl <K, V1, V2> WithChange<K, V2> for Message<K, V1> {
     }
 }
 
-impl <K, V> WithTopic<K, V> for Message<K, V> {
-    fn with_topic(self, topic: String)  -> Message<K, V> {
+impl<K, V> WithTopic<K, V> for Message<K, V> {
+    fn with_topic(self, topic: String) -> Message<K, V> {
         Message::<K, V> {
             payload: self.payload,
             key: self.key,
@@ -137,10 +137,7 @@ impl Stream<Key, Value> {
                 match self.rx.recv().await {
                     Some(message) => {
                         let message = message.with_topic(topic_name.to_string());
-                        self.appends
-                            .send(message)
-                            .await
-                            .unwrap();
+                        self.appends.send(message).await.unwrap();
                     }
                     None => {
                         println!("closed 1");

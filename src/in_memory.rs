@@ -1,4 +1,4 @@
-use tokio::sync::mpsc::{ Sender};
+use tokio::sync::mpsc::Sender;
 
 use std::collections::HashMap;
 
@@ -22,9 +22,9 @@ impl Driver {
             loop {
                 match src.recv().await {
                     Some(message) => match message.payload {
-                        Some(p) => println!("writing {:?}", String::from_utf8(p).unwrap()),
+                        Some(p) => print!("{:?}", String::from_utf8(p).unwrap()),
                         None => println!("none"),
-                    }
+                    },
                     None => {
                         println!("closed 2");
                         return;
@@ -41,9 +41,7 @@ impl Driver {
 
 #[async_trait]
 impl<'a> super::driver::Driver for Driver {
-    async fn stop(self) {
-
-    }
+    async fn stop(self) {}
 
     async fn write_to(&mut self, topic_name: &str, msg: Message<Key, Value>) {
         self.inputs
