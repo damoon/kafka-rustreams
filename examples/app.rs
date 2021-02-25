@@ -30,8 +30,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // signal::ctrl_c().await?;
 
-    app.await_end_of_topic();
-
     app.stop().await;
 
     Ok(())

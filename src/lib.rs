@@ -1,12 +1,4 @@
-use core::panic;
-use std::{borrow::Borrow, option, time::Duration};
-use tokio::{task::JoinHandle, time::sleep};
-
-use std::sync::Arc;
-use tokio::sync::mpsc::{channel, unbounded_channel, Receiver, Sender};
-use tokio::sync::oneshot;
-use tokio::sync::Mutex;
-use tokio::sync::Semaphore;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use std::collections::HashMap;
 
@@ -19,10 +11,12 @@ pub mod in_memory;
 pub mod kafka;
 pub mod postgresql;
 
+const CHANNEL_BUFFER_SIZE: usize = 1;
+
 #[derive(Debug, Clone)]
-pub struct Message {
-    pub payload: Option<Vec<u8>>,
-    pub key: Option<Vec<u8>>,
+pub struct Message<K, V> {
+    pub payload: Option<V>,
+    pub key: Option<K>,
     pub topic: String,
     pub timestamp: Timestamp,
     pub partition: i32,
@@ -30,19 +24,19 @@ pub struct Message {
     // headers: Option<OwnedHeaders>,
 }
 
-impl Message {
+impl<K, V> Message<K, V> {
     /// Creates a new message with the specified content.
     ///
     /// This function is mainly useful in tests of `rust-rdkafka` itself.
     pub fn new(
-        payload: Option<Vec<u8>>,
-        key: Option<Vec<u8>>,
+        payload: Option<V>,
+        key: Option<K>,
         topic: String,
         timestamp: Timestamp,
         partition: i32,
         offset: i64,
         // headers: Option<OwnedHeaders>,
-    ) -> Message {
+    ) -> Message<K, V> {
         Message {
             payload,
             key,
@@ -55,21 +49,60 @@ impl Message {
     }
 }
 
-pub struct Topology {
-    inputs: HashMap<&'static str, Sender<Message>>,
-    writes_sink: Sender<Message>,
-    writes_source: Receiver<Message>,
+trait WithChange<K, V> {
+    fn with_value(self, payload: Option<V>)  -> Message<K, V>;
 }
 
-pub struct Stream {
-    rx: Receiver<Message>,
-    output: Sender<Message>,
+trait WithTopic<K, V> {
+    fn with_topic(self, topic: String)  -> Message<K, V>;
+}
+
+impl <K, V1, V2> WithChange<K, V2> for Message<K, V1> {
+    fn with_value(self, payload: Option<V2>)  -> Message<K, V2> {
+        Message::<K, V2> {
+            payload: payload,
+            key: self.key,
+            topic: self.topic,
+            timestamp: self.timestamp,
+            partition: self.partition,
+            offset: self.offset,
+            // headers,
+        }
+    }
+}
+
+impl <K, V> WithTopic<K, V> for Message<K, V> {
+    fn with_topic(self, topic: String)  -> Message<K, V> {
+        Message::<K, V> {
+            payload: self.payload,
+            key: self.key,
+            topic: topic,
+            timestamp: self.timestamp,
+            partition: self.partition,
+            offset: self.offset,
+            // headers,
+        }
+    }
+}
+
+type Key = Vec<u8>;
+type Value = Vec<u8>;
+
+pub struct Topology {
+    inputs: HashMap<&'static str, Sender<Message<Key, Value>>>,
+    writes_sink: Sender<Message<Key, Value>>,
+    writes_source: Receiver<Message<Key, Value>>,
+}
+
+pub struct Stream<K, V> {
+    rx: Receiver<Message<K, V>>,
+    appends: Sender<Message<Key, Value>>,
 }
 
 impl<'a> Topology {
     pub fn new() -> Topology {
         let inputs = HashMap::new();
-        let (writes_sink, writes_source) = channel(1);
+        let (writes_sink, writes_source) = channel(CHANNEL_BUFFER_SIZE);
         Topology {
             inputs,
             writes_sink,
@@ -77,80 +110,35 @@ impl<'a> Topology {
         }
     }
 
-    pub async fn process_message(self, topic_name: &str, msg: Message) {
+    pub async fn process_message(self, topic_name: &str, msg: Message<Key, Value>) {
         let topic = self.inputs.get(topic_name);
         match topic {
-            None => panic!("topic not registered"),
+            None => (),
             Some(sender) => {
-                if let Err(e) = sender.send(msg).await {
-                    panic!("failed to send: {}", e);
-                }
+                sender.send(msg).await.unwrap();
             }
         }
     }
 
-    pub fn read_from(&mut self, topic: &'static str) -> Stream {
-        let (tx, rx) = channel(1);
+    pub fn read_from(&mut self, topic: &'static str) -> Stream<Key, Value> {
+        let (tx, rx) = channel(CHANNEL_BUFFER_SIZE);
         self.inputs.insert(topic, tx);
         Stream {
             rx,
-            output: self.writes_sink.clone(),
+            appends: self.writes_sink.clone(),
         }
     }
 }
 
-impl Stream {
-    async fn recv(&mut self) -> Option<Message> {
-        self.rx.recv().await
-    }
-
-    fn poll_recv(&mut self) -> futures::task::Poll<Option<Message>> {
-        use futures::task::{noop_waker, Context, Poll};
-        let waker = noop_waker();
-        let mut cx = Context::from_waker(&waker);
-        self.rx.poll_recv(&mut cx)
-    }
-
-    pub fn write_to(mut self, topic_name: &str) {
+impl Stream<Key, Value> {
+    pub fn write_to(mut self, topic_name: &'static str) {
         tokio::spawn(async move {
             loop {
-                /*
-                match self.rx.blocking_recv() {
-                    None => {
-                        println!("closed 1");
-                        return;
-                    }
-                    Some(msg) => self.output.send(msg).await.unwrap(),
-                }
-                */
-
-                /*
-                use futures::task::Poll;
-                match self.poll_recv() {
-                    Poll::Pending => {
-                        //    println!("pending 1")
-                    }
-                    Poll::Ready(Some(message)) => {
-                        println!("msg 1");
-                        self.output
-                            .send(message)
-                            //.send_timeout(message, Duration::from_millis(200))
-                            .await
-                            .unwrap();
-                    }
-                    Poll::Ready(None) => {
-                        println!("closed 1");
-                        return;
-                    }
-                };
-                */
-
-                match self.recv().await {
+                match self.rx.recv().await {
                     Some(message) => {
-                        println!("msg 1");
-                        self.output
+                        let message = message.with_topic(topic_name.to_string());
+                        self.appends
                             .send(message)
-                            //.send_timeout(message, Duration::from_millis(200))
                             .await
                             .unwrap();
                     }

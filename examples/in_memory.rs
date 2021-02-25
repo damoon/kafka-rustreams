@@ -11,17 +11,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut app = in_memory::Driver::new(topology);
 
-    let msg = rustreams::Message {
-        payload: Some("test1".as_bytes().to_vec()),
-        key: None,
-        topic: "topic".to_string(),
-        timestamp: Timestamp::NotAvailable,
-        partition: 0,
-        offset: 0,
-    };
+    for n in 1..10 {
+        let msg = Message {
+            payload: Some(format!("The number is {}", n).as_bytes().to_vec()),
+            key: None,
+            topic: "topic".to_string(),
+            timestamp: Timestamp::NotAvailable,
+            partition: 0,
+            offset: 0,
+        };
 
-    app.write_to("input_topic", msg.clone()).await;
-    app.write_to("input_topic", msg.clone()).await;
+        app.write_to("input_topic", msg.clone()).await;
+    }
 
     sleep(Duration::from_millis(200)).await;
 
