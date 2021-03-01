@@ -10,6 +10,7 @@ pub mod example_topologies;
 pub mod in_memory;
 pub mod kafka;
 pub mod postgresql;
+pub mod mapper;
 
 const CHANNEL_BUFFER_SIZE: usize = 1;
 
@@ -148,39 +149,3 @@ impl Stream<Key, Value> {
         });
     }
 }
-
-/*
-pub trait Mapper<'a, V1, V2> {
-    fn map(self, m: impl Send + 'static + Fn(V1) -> V2) -> Stream<V2>;
-}
-
-impl<'a, V1: Send + 'static, V2: Send + 'static> Mapper<'a, V1, V2> for Stream<V1> {
-    fn map(mut self, map: impl Send + 'static + Fn(V1) -> V2) -> Stream<V2> {
-        let (tx, rx) = channel::<V2>(1);
-
-        tokio::spawn(async move {
-            let ten_millis = std::time::Duration::from_millis(10);
-            std::thread::sleep(ten_millis);
-
-            use futures::task::Poll;
-            match self.poll_recv() {
-                Poll::Pending => {
-                    println!("pending")
-                }
-                Poll::Ready(Some(message)) => {
-                    println!("msg");
-                    let new_message = map(message);
-                    if let Err(e) = tx.send(new_message).await {
-                        panic!("failed to send: {}", e);
-                    }
-                }
-                Poll::Ready(None) => {
-                    println!("closed")
-                }
-            };
-        });
-
-        Stream { rx }
-    }
-}
-*/

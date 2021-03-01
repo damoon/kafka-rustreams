@@ -3,15 +3,14 @@ use rustreams::driver::Driver;
 use rustreams::example_topologies;
 use rustreams::in_memory;
 use rustreams::Message;
-use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let topology = example_topologies::copy("input_topic", "ouput_topic");
+    let topology = example_topologies::copy("input_topic", "output_topic");
 
     let mut app = in_memory::Driver::new(topology);
 
-    for n in 1..100 {
+    for n in 0..10 {
         let msg = Message {
             payload: Some(format!("hello world {}", n).as_bytes().to_vec()),
             key: None,
@@ -21,10 +20,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             offset: 0,
         };
 
-        app.write_to("input_topic", msg.clone()).await;
+        app.write_to("input_topic", msg).await;
     }
 
-    sleep(Duration::from_millis(200)).await;
+    app.stop().await;
 
     Ok(())
 }
