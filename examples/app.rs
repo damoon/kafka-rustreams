@@ -14,12 +14,16 @@ use rustreams::Topology;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut topology = Topology::new();
 
-    let input1 = topology.read_from("input1");
+    let input1 = topology.read_from("input1"); // TODO only allow one stream per topic
     let input2 = topology.read_from("input2");
 
     let length2 = input2
         .map(|s: &Vec<u8>| -> usize { s.len() })
-        .map(|i| { i.to_be_bytes().to_vec() });
+        //.map(len)
+        .map(usize_ser);
+        //.map(|i| { i.to_be_bytes().to_vec() });
+
+    let a3 = input2.map(len); // TODO not allowed
 
     input1.write_to("output1");
     length2.write_to("output2");
@@ -42,4 +46,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.stop().await;
 
     Ok(())
+}
+
+fn len (s: &Vec<u8>) -> usize {
+    s.len()
+}
+
+fn usize_ser (i: &usize) -> Vec<u8> {
+    i.to_be_bytes().to_vec()
 }
