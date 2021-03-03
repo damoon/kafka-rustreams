@@ -17,3 +17,5 @@
 * /metrics endpoint
 * /health endpoint
 * debug ui: select offset to load
+
+* tune with https://nnethercote.github.io/perf-book/build-configuration.html

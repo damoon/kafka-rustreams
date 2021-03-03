@@ -2,8 +2,8 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use std::collections::HashMap;
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 // use rdkafka::message::{Message, OwnedMessage};
 use rdkafka::message::Timestamp;
@@ -12,10 +12,16 @@ pub mod driver;
 pub mod example_topologies;
 pub mod in_memory;
 pub mod kafka;
-pub mod postgresql;
 pub mod mapper;
+pub mod postgresql;
 
 const CHANNEL_BUFFER_SIZE: usize = 1_000;
+
+#[derive(Debug, Clone)]
+enum StreamMessage<K, V> {
+    Flush,
+    Message(Message<K, V>),
+}
 
 #[derive(Debug, Clone)]
 pub struct Message<K, V> {
@@ -93,37 +99,33 @@ type Key = Vec<u8>;
 type Value = Vec<u8>;
 
 pub struct Topology {
-    inputs: HashMap<&'static str, Sender<Message<Key, Value>>>,
+    inputs: HashMap<&'static str, Sender<StreamMessage<Key, Value>>>,
 
-    flush_tx: Vec<Sender<()>>,
     flush_needed: Arc<AtomicUsize>,
 
     flushed_tx: Sender<()>,
     flushed_rx: Receiver<()>,
 
-    writes_tx: Sender<Message<Key, Value>>,
-    writes_rx: Receiver<Message<Key, Value>>,
+    writes_tx: Sender<StreamMessage<Key, Value>>,
+    writes_rx: Receiver<StreamMessage<Key, Value>>,
 }
 
 pub struct Stream<K, V> {
-    rx: Receiver<Message<K, V>>,
-    appends: Sender<Message<Key, Value>>,
+    rx: Receiver<StreamMessage<K, V>>,
+    appends: Sender<StreamMessage<Key, Value>>,
     flush_needed: Arc<AtomicUsize>,
-    flush: Receiver<()>,
     flushed: Sender<()>,
 }
 
 impl<'a> Topology {
     pub fn new() -> Topology {
         let inputs = HashMap::new();
-        let flush_tx = Vec::new();
         let flush_needed = Arc::new(AtomicUsize::new(0));
         let (flushed_tx, flushed_rx) = channel(1);
         let (writes_tx, writes_rx) = channel(CHANNEL_BUFFER_SIZE);
-        
+
         Topology {
             inputs,
-            flush_tx,
             flush_needed,
             flushed_tx,
             flushed_rx,
@@ -132,20 +134,7 @@ impl<'a> Topology {
         }
     }
 
-    pub async fn process_message(self, topic_name: &str, msg: Message<Key, Value>) {
-        let topic = self.inputs.get(topic_name);
-        match topic {
-            None => (),
-            Some(sender) => {
-                sender.send(msg).await.unwrap();
-            }
-        }
-    }
-
     pub fn read_from(&mut self, topic: &'static str) -> Stream<Key, Value> {
-        let (flush_tx, flush_rx) = channel(1);
-        self.flush_tx.push(flush_tx);
-
         let (tx, rx) = channel(CHANNEL_BUFFER_SIZE);
         self.inputs.insert(topic, tx);
 
@@ -153,7 +142,6 @@ impl<'a> Topology {
             rx,
             appends: self.writes_tx.clone(),
             flush_needed: self.flush_needed.clone(),
-            flush: flush_rx,
             flushed: self.flushed_tx.clone(),
         }
     }
@@ -164,50 +152,29 @@ impl Stream<Key, Value> {
         self.flush_needed.fetch_add(1, Ordering::SeqCst);
 
         tokio::spawn(async move {
-            'outer: loop {
-                tokio::select! {
-                    received = self.rx.recv() => {
-                        match received {
-                            Some(message) => {
-                                let message = message.with_topic(topic_name.to_string());
-                                self.appends.send(message).await.unwrap();
-                            }
-                            None => {
-                                break 'outer;
-                            }
-                        };
-                    },
-                    _ = self.flush.recv() => {
-                        loop {
-                            use std::task::Poll;
-                            match self.poll_recv() {    
-                                Poll::Pending => {
-                                    println!("acking flush");
-                                    self.flushed.send(()).await.expect("failed to send flush acknowledgement");
-                                    println!("acked flush");
-                                    continue 'outer;
-                                },
-                                Poll::Ready(received) => {
-                                    match received {
-                                        Some(message) => {
-                                            let message = message.with_topic(topic_name.to_string());
-                                            self.appends.send(message).await.unwrap();
-                                        }
-                                        None => {
-                                            break 'outer;
-                                        }
-                                    }
-                                }
-                            }
+            loop {
+                match self.rx.recv().await {
+                    Some(StreamMessage::Message(message)) => {
+                        let message = message.with_topic(topic_name.to_string());
+                        self.appends
+                            .send(StreamMessage::Message(message))
+                            .await
+                            .expect("failed to forward message");
+                    }
+                    Some(StreamMessage::Flush) => {
+                        if let Err(e) = self.appends.send(StreamMessage::Flush).await {
+                            panic!("failed to forward flush: {}", e);
                         }
-                    },
-                }
+                    }
+                    None => {
+                        return;
+                    }
+                };
             }
         });
     }
 
-
-    fn poll_recv(&mut self) -> futures::task::Poll<Option<Message<Key, Value>>> {
+    fn poll_recv(&mut self) -> futures::task::Poll<Option<StreamMessage<Key, Value>>> {
         use futures::task::{noop_waker, Context};
         let waker = noop_waker();
         let mut cx = Context::from_waker(&waker);
