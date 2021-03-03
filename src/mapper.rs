@@ -34,6 +34,12 @@ impl<K: Send + 'static, V1: Send + 'static, V2: Send + 'static> Mapper<K, V1, V2
             }
         });
 
-        Stream { rx, appends: self.appends }
+        Stream {
+            rx,
+            flush: self.flush,
+            flushed: self.flushed,
+            flush_needed: self.flush_needed,
+            appends: self.appends
+        }
     }
 }

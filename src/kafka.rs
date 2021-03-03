@@ -39,7 +39,7 @@ impl Driver {
 
 #[async_trait]
 impl<'a> super::driver::Driver for Driver {
-    async fn write_to(&mut self, _topic: &str, _msg: Message<Key, Value>) {}
+    async fn write_to(&self, _topic: &str, _msg: Message<Key, Value>) {}
     
     async fn stop(mut self) {
 

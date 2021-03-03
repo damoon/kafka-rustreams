@@ -1,6 +1,8 @@
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use std::collections::HashMap;
+
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 // use rdkafka::message::{Message, OwnedMessage};
@@ -13,7 +15,7 @@ pub mod kafka;
 pub mod postgresql;
 pub mod mapper;
 
-const CHANNEL_BUFFER_SIZE: usize = 1;
+const CHANNEL_BUFFER_SIZE: usize = 1_000;
 
 #[derive(Debug, Clone)]
 pub struct Message<K, V> {
@@ -94,7 +96,7 @@ pub struct Topology {
     inputs: HashMap<&'static str, Sender<Message<Key, Value>>>,
 
     flush_tx: Vec<Sender<()>>,
-    flush_needed: AtomicUsize,
+    flush_needed: Arc<AtomicUsize>,
 
     flushed_tx: Sender<()>,
     flushed_rx: Receiver<()>,
@@ -106,7 +108,7 @@ pub struct Topology {
 pub struct Stream<K, V> {
     rx: Receiver<Message<K, V>>,
     appends: Sender<Message<Key, Value>>,
-    flush_needed: AtomicUsize,
+    flush_needed: Arc<AtomicUsize>,
     flush: Receiver<()>,
     flushed: Sender<()>,
 }
@@ -115,7 +117,7 @@ impl<'a> Topology {
     pub fn new() -> Topology {
         let inputs = HashMap::new();
         let flush_tx = Vec::new();
-        let flush_needed = AtomicUsize::new(5);
+        let flush_needed = Arc::new(AtomicUsize::new(0));
         let (flushed_tx, flushed_rx) = channel(1);
         let (writes_tx, writes_rx) = channel(CHANNEL_BUFFER_SIZE);
         
@@ -150,16 +152,16 @@ impl<'a> Topology {
         Stream {
             rx,
             appends: self.writes_tx.clone(),
-            flush_needed: self.flush_needed,
+            flush_needed: self.flush_needed.clone(),
             flush: flush_rx,
-            flushed: self.flushed_tx,
+            flushed: self.flushed_tx.clone(),
         }
     }
 }
 
 impl Stream<Key, Value> {
     pub fn write_to(mut self, topic_name: &'static str) {
-        self.flush_needed.fetch_add(1, Ordering::Relaxed);
+        self.flush_needed.fetch_add(1, Ordering::SeqCst);
 
         tokio::spawn(async move {
             'outer: loop {
@@ -180,7 +182,9 @@ impl Stream<Key, Value> {
                             use std::task::Poll;
                             match self.poll_recv() {    
                                 Poll::Pending => {
-                                    self.flushed.send(());
+                                    println!("acking flush");
+                                    self.flushed.send(()).await.expect("failed to send flush acknowledgement");
+                                    println!("acked flush");
                                     continue 'outer;
                                 },
                                 Poll::Ready(received) => {
