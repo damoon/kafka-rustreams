@@ -95,9 +95,6 @@ impl<K, V> WithTopic<K, V> for Message<K, V> {
     }
 }
 
-type Key = Vec<u8>;
-type Value = Vec<u8>;
-
 pub struct Topology {
     inputs: HashMap<&'static str, Sender<StreamMessage<Key, Value>>>,
 
@@ -108,13 +105,6 @@ pub struct Topology {
 
     writes_tx: Sender<StreamMessage<Key, Value>>,
     writes_rx: Receiver<StreamMessage<Key, Value>>,
-}
-
-pub struct Stream<K, V> {
-    rx: Receiver<StreamMessage<K, V>>,
-    appends: Sender<StreamMessage<Key, Value>>,
-    flush_needed: Arc<AtomicUsize>,
-    flushed: Sender<()>,
 }
 
 impl<'a> Topology {
@@ -147,9 +137,19 @@ impl<'a> Topology {
     }
 }
 
+pub struct Stream<K, V> {
+    rx: Receiver<StreamMessage<K, V>>,
+    appends: Sender<StreamMessage<Key, Value>>,
+    flush_needed: Arc<AtomicUsize>,
+    flushed: Sender<()>,
+}
+
+type Key = Vec<u8>;
+type Value = Vec<u8>;
+
 impl Stream<Key, Value> {
     pub fn write_to(mut self, topic_name: &'static str) {
-        self.flush_needed.fetch_add(1, Ordering::SeqCst);
+        self.flush_needed.fetch_add(1, Ordering::Relaxed);
 
         tokio::spawn(async move {
             loop {

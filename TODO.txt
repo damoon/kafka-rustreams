@@ -1,10 +1,27 @@
+* memory Driver
+* flush data pipeline
 
-* Driver to execute Topologies for in memory, kafka, postgres
+* verify logged topic in memory for unit tests
+
+* partitions within topics
+
+* tilt
+* kafka operator
+* kafka Driver
+
+* log levels
+* limit number of CPUs / autodetect cgroup limit https://www.youtube.com/watch?v=2WXNY1ppTzY
+
 * transactional copy
-* deser json, avro, and protobuf
-* be able to drain the process pipeline [https://rust-lang.github.io/async-book/06_multiple_futures/03_select.html]
-* clean shutdown [https://docs.rs/tokio/1.1.0/tokio/signal/index.html]
 * drain and flush periodically to stay, including commit, within 100ms
+
+* postgresql Driver
+* file Driver
+* git Driver
+
+* deser json, avro, and protobuf
+
+* clean shutdown [https://docs.rs/tokio/1.1.0/tokio/signal/index.html]
 * generate graphviz dot output [https://stackoverflow.com/questions/38088067/equivalent-of-func-or-function-in-rust]
 * ensure librdkafka and kafka streams java client use the same hash function for partitioning
 

@@ -7,44 +7,57 @@ use rustreams::Message;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let topology = example_topologies::copy("input_topic", "output_topic");
 
-    let driver = in_memory::Driver::new();
-    let mut app = driver.start(topology);
+    let mut driver = in_memory::Driver::start(topology);
 
     for n in 0..1_000_000 {
         let msg = Message {
             payload: Some(format!("hello world {}", n).as_bytes().to_vec()),
             key: None,
-            topic: "topic".to_string(),
+            topic: "input_topic".to_string(),
             timestamp: Timestamp::NotAvailable,
             partition: 0,
             offset: 0,
         };
 
-        app.write_to("input_topic", msg).await;
+        driver.write_to(msg).await;
     }
 
-    println!("writes {:?}", app.writes_counter);
+    println!(
+        "created messages: {:?}",
+        driver.created_messages.lock().unwrap().len()
+    );
 
-    app.flush().await;
+    driver.flush().await;
+
+    println!(
+        "created messages: {:?}",
+        driver.created_messages.lock().unwrap().len()
+    );
 
     for n in 10..20 {
         let msg = Message {
             payload: Some(format!("Hello, world {}.", n).as_bytes().to_vec()),
             key: None,
-            topic: "topic".to_string(),
+            topic: "input_topic".to_string(),
             timestamp: Timestamp::NotAvailable,
             partition: 0,
             offset: 0,
         };
 
-        app.write_to("input_topic", msg).await;
+        driver.write_to(msg).await;
     }
- 
-    println!("writes {:?}", app.writes_counter);
 
-    app.stop().await;
+    println!(
+        "created messages: {:?}",
+        driver.created_messages.lock().unwrap().len()
+    );
 
-    println!("writes {:?}", app.writes_counter);
+    driver.stop().await;
+
+    println!(
+        "created messages: {:?}",
+        driver.created_messages.lock().unwrap().len()
+    );
 
     Ok(())
 }
