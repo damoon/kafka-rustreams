@@ -173,11 +173,4 @@ impl Stream<Key, Value> {
             }
         });
     }
-
-    fn poll_recv(&mut self) -> futures::task::Poll<Option<StreamMessage<Key, Value>>> {
-        use futures::task::{noop_waker, Context};
-        let waker = noop_waker();
-        let mut cx = Context::from_waker(&waker);
-        self.rx.poll_recv(&mut cx)
-    }
 }

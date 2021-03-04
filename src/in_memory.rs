@@ -38,7 +38,7 @@ impl Driver {
                     Some(StreamMessage::Message(message)) => match message.payload {
                         Some(p) => {
                             writes_counter_clone.fetch_add(1, Ordering::SeqCst);
-                            //println!("{:?}", String::from_utf8(p).unwrap()),
+                            // TODO
                         }
                         None => println!("none"),
                     },
@@ -99,9 +99,9 @@ impl Application {
     pub async fn write_to(&mut self, topic_name: &str, msg: Message<Key, Value>) {
         self.inputs
             .get(topic_name)
-            .unwrap()
+            .expect(format!("failed to look up input stream {}", topic_name).as_str())
             .send(StreamMessage::Message(msg))
             .await
-            .unwrap()
+            .expect("failed to write message")
     }
 }
