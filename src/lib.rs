@@ -34,14 +34,18 @@ pub struct Message<K, V> {
     // headers: Option<OwnedHeaders>,
 }
 
-pub fn new_message(topic: String, key: Option<String>, value: Option<String>) -> Message<Key, Value> {
+pub fn new_message(
+    topic: String,
+    key: Option<String>,
+    value: Option<String>,
+) -> Message<Key, Value> {
     let key = match key {
         None => None,
-        Some(key) => Some(key.as_bytes().to_vec())
+        Some(key) => Some(key.as_bytes().to_vec()),
     };
     let payload = match value {
         None => None,
-        Some(value) => Some(value.as_bytes().to_vec())
+        Some(value) => Some(value.as_bytes().to_vec()),
     };
 
     Message {
@@ -175,7 +179,10 @@ impl Stream<Key, Value> {
             loop {
                 match self.rx.recv().await {
                     Some(StreamMessage::Message(message)) => {
+                        log::debug!("write message to topic {}", topic_name);
+
                         let message = message.with_topic(topic_name.to_string());
+
                         self.appends
                             .send(StreamMessage::Message(message))
                             .await
@@ -187,6 +194,8 @@ impl Stream<Key, Value> {
                         }
                     }
                     None => {
+                        log::debug!("write to topic thread stopped");
+
                         return;
                     }
                 };

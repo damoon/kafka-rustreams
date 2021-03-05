@@ -16,6 +16,8 @@ pub struct Driver {
 
 impl Driver {
     pub fn start(topo: Topology) -> Driver {
+        log::debug!("start in memory driver");
+
         let created_messages = Arc::new(Mutex::new(Vec::new()));
 
         let flushed_tx = topo.flushed_tx;
@@ -26,13 +28,16 @@ impl Driver {
             loop {
                 match writes_rx.recv().await {
                     Some(StreamMessage::Message(message)) => {
+                        log::debug!("caught created message");
+
                         created_messages_clone.lock().unwrap().push(message.clone());
                     }
                     Some(StreamMessage::Flush) => {
                         flushed_tx.send(()).await.expect("failed to ack flush")
                     }
                     None => {
-                        // channel closed
+                        log::debug!("in memory driver write thread stopped");
+
                         return;
                     }
                 };
@@ -48,38 +53,49 @@ impl Driver {
     }
 
     async fn flush(&mut self) {
-        // println!("flushing");
+        log::debug!("flushing");
 
         let expected_acks = self.inputs.len() * self.flush_needed.load(Ordering::Relaxed);
-        // println!("await {} flushes", expected_acks);
+
+        log::debug!("await {} flushes", expected_acks);
 
         for flusher in self.inputs.iter() {
-            //    println!("request flush");
+            log::debug!("request flush");
+
             flusher
                 .1
                 .send(StreamMessage::Flush)
                 .await
                 .expect("failed to trigger flush");
-            //    println!("requested flush");
+
+            log::debug!("requested flush");
         }
 
         for _ in 0..expected_acks {
-            //    println!("await flush ack");
+            log::debug!("await flush ack");
+
             self.flushed_rx
                 .recv()
                 .await
                 .expect("failed to receive flush acknowledge");
         }
-        // println!("all flushes acked");
+
+        log::debug!("all flushes acked");
     }
 
     pub async fn stop(mut self) -> Vec<Message<Key, Value>> {
+        log::debug!("stopping in memory driver");
+
         self.flush().await;
+
         self.created_messages.lock().unwrap().to_owned()
     }
 
     pub async fn write_to(&mut self, msg: Message<Key, Value>) {
+        log::debug!("write test message to topic {}", msg.topic);
+
         let topic_name = msg.topic.clone();
+
         self.inputs
             .get(topic_name.as_str())
             .expect(format!("failed to look up input stream {}", topic_name).as_str())

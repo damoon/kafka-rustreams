@@ -1,15 +1,19 @@
 * memory Driver
 * flush data pipeline
-
-* verify logged topic in memory for unit tests
-
-* partitions within topics
+* verify created messages for unit tests
+* log levels
 
 * tilt
 * kafka operator
 * kafka Driver
 
-* log levels
+* map
+* devide
+* collect
+* join
+* table
+* windowed
+
 * limit number of CPUs / autodetect cgroup limit https://www.youtube.com/watch?v=2WXNY1ppTzY
 
 * transactional copy

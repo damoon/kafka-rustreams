@@ -25,16 +25,16 @@ impl<K: Send + 'static, V1: Send + 'static, V2: Send + 'static> Mapper<K, V1, V2
                         let new_message = message.with_value(new_payload);
 
                         if let Err(e) = tx.send(StreamMessage::Message(new_message)).await {
-                            panic!("failed to forward message: {}", e);
+                            panic!("forward message failed: {}", e);
                         }
                     }
                     Some(StreamMessage::Flush) => {
                         if let Err(e) = tx.send(StreamMessage::Flush).await {
-                            panic!("failed to forward flush: {}", e);
+                            panic!("forward flush failed: {}", e);
                         }
                     }
                     None => {
-                        println!("closed 2");
+                        log::debug!("close map thread");
                         return;
                     }
                 };

@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|s: &Vec<u8>| -> usize { s.len() })
         //.map(len)
         .map(usize_ser);
-        //.map(|i| { i.to_be_bytes().to_vec() });
+    //.map(|i| { i.to_be_bytes().to_vec() });
 
     let a3 = input2.map(len); // TODO not allowed
 
@@ -48,10 +48,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn len (s: &Vec<u8>) -> usize {
+fn len(s: &Vec<u8>) -> usize {
     s.len()
 }
 
-fn usize_ser (i: &usize) -> Vec<u8> {
+fn usize_ser(i: &usize) -> Vec<u8> {
     i.to_be_bytes().to_vec()
 }

@@ -16,6 +16,8 @@ Kafka streams in rust.
 
 `time taskset 0x1 cargo run --release --example channel3`
 
+`RUSTFLAGS="-C target-cpu=native" cargo build --release --example in_memory && /usr/bin/time -v target/release/examples/in_memory`
+
 
 ## Learnings
 

@@ -1,8 +1,8 @@
-use crate::{Message, Key, Value};
+use crate::{Key, Message, Value};
 
 use super::Topology;
 use tokio::sync::oneshot;
-use tokio::{task::JoinHandle};
+use tokio::task::JoinHandle;
 
 use async_trait::async_trait;
 
@@ -29,10 +29,7 @@ impl Driver {
             }
         });
 
-        Driver {
-            tx,
-            task,
-        }
+        Driver { tx, task }
     }
 }
 
@@ -43,13 +40,9 @@ impl<'a> super::driver::Driver for Driver {
     async fn stop(mut self) {
         println!("shutting down");
 
-        self.tx
-            .send(())
-            .expect("failed to signal shutdown");
+        self.tx.send(()).expect("failed to signal shutdown");
 
-        self.task
-            .await
-            .expect("failed to wait for shutdown");
+        self.task.await.expect("failed to wait for shutdown");
 
         println!("shut down complete");
     }
