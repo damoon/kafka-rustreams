@@ -28,6 +28,8 @@
 * statefull operations [https://kafka.apache.org/27/documentation/streams/developer-guide/dsl-api.html#streams-developer-guide-dsl-transformations-stateful]
 * Processors [https://kafka.apache.org/27/documentation/streams/developer-guide/processor-api.html]
 
+* balance value for queue length, benchmark memory peek usage, time to flush, and throughput
+
 * configure tokio to run the number of workers that fit the the cgroup cpu limit [https://blog.logrocket.com/a-practical-guide-to-async-in-rust/] [https://blog.logrocket.com/asynchronous-i-o-and-async-await-packages-in-rust/]
 * views accessable via http [https://github.com/jonhoo/left-right]
 * /metrics endpoint

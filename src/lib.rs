@@ -34,6 +34,26 @@ pub struct Message<K, V> {
     // headers: Option<OwnedHeaders>,
 }
 
+pub fn new_message(topic: String, key: Option<String>, value: Option<String>) -> Message<Key, Value> {
+    let key = match key {
+        None => None,
+        Some(key) => Some(key.as_bytes().to_vec())
+    };
+    let payload = match value {
+        None => None,
+        Some(value) => Some(value.as_bytes().to_vec())
+    };
+
+    Message {
+        payload,
+        key,
+        topic,
+        timestamp: Timestamp::NotAvailable,
+        partition: 0,
+        offset: 0,
+    }
+}
+
 impl<K, V> Message<K, V> {
     /// Creates a new message with the specified content.
     ///
