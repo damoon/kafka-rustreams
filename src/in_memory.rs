@@ -57,10 +57,10 @@ impl Driver {
     }
 
     pub async fn flush(&mut self) {
-        println!("flushing");
+        // println!("flushing");
 
         let expected_acks = self.inputs.len() * self.flush_needed.load(Ordering::Relaxed);
-        //println!("await {} flushes", expected_acks);
+        // println!("await {} flushes", expected_acks);
 
         for flusher in self.inputs.iter() {
             //    println!("request flush");
@@ -80,10 +80,6 @@ impl Driver {
                 .expect("failed to receive flush acknowledge");
         }
         // println!("all flushes acked");
-    }
-
-    pub async fn stop(&mut self) {
-        self.flush().await;
     }
 
     pub async fn write_to(&mut self, msg: Message<Key, Value>) {

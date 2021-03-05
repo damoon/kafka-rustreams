@@ -16,8 +16,7 @@
 * drain and flush periodically to stay, including commit, within 100ms
 
 * postgresql Driver
-* file Driver
-* git Driver
+* filesystem Driver (git)
 
 * deser json, avro, and protobuf
 

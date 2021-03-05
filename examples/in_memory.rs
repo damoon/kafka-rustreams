@@ -22,15 +22,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         driver.write_to(msg).await;
     }
 
-    println!(
-        "created messages: {:?}",
-        driver.created_messages.lock().unwrap().len()
-    );
-
     driver.flush().await;
 
-    println!(
-        "created messages: {:?}",
+    assert_eq!(
+        1_000_000,
+        driver.created_messages.lock().unwrap().len(),
+        "found {} created messages instead of 1.000.000 messages",
         driver.created_messages.lock().unwrap().len()
     );
 
@@ -47,15 +44,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         driver.write_to(msg).await;
     }
 
-    println!(
-        "created messages: {:?}",
-        driver.created_messages.lock().unwrap().len()
-    );
+    driver.flush().await;
 
-    driver.stop().await;
-
-    println!(
-        "created messages: {:?}",
+    assert_eq!(
+        1_000_010,
+        driver.created_messages.lock().unwrap().len(),
+        "found {} created messages instead of 1.000.010 messages",
         driver.created_messages.lock().unwrap().len()
     );
 
