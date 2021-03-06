@@ -1,11 +1,17 @@
+Done
 * memory Driver
 * flush data pipeline
 * verify created messages for unit tests
 * log levels
 
-* tilt
-* kafka operator
+Doing
 * kafka Driver
+* transactional copy
+* drain and flush periodically to stay, including commit, within 100ms
+
+* postgresql Driver
+
+* filesystem Driver (git)
 
 * map
 * devide
@@ -14,13 +20,12 @@
 * table
 * windowed
 
+* tilt
+* kafka operator
+
+
 * limit number of CPUs / autodetect cgroup limit https://www.youtube.com/watch?v=2WXNY1ppTzY
 
-* transactional copy
-* drain and flush periodically to stay, including commit, within 100ms
-
-* postgresql Driver
-* filesystem Driver (git)
 
 * deser json, avro, and protobuf
 

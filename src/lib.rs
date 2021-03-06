@@ -14,6 +14,7 @@ pub mod in_memory;
 pub mod kafka;
 pub mod mapper;
 pub mod postgresql;
+pub mod testing;
 
 const CHANNEL_BUFFER_SIZE: usize = 1_000;
 

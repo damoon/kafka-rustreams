@@ -1,6 +1,6 @@
 use rustreams::example_topologies;
-use rustreams::in_memory::Driver;
 use rustreams::new_message;
+use rustreams::testing::Driver;
 
 use env_logger;
 
@@ -24,7 +24,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         driver.write_to(msg).await;
     }
 
-    driver.stop().await;
+    let messages = driver.stop().await;
+
+    assert_eq!(
+        1_000_000,
+        messages.len(),
+        "found {} created messages instead of 1.000.000 messages",
+        messages.len()
+    );
 
     Ok(())
 }
