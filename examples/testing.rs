@@ -1,6 +1,7 @@
+use rustreams::driver::Driver;
 use rustreams::example_topologies;
 use rustreams::new_message;
-use rustreams::testing::Driver;
+use rustreams::testing;
 
 use env_logger;
 
@@ -13,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let topology = example_topologies::copy("input_topic", "output_topic");
 
-    let mut driver = Driver::start(topology);
+    let mut driver = testing::Driver::start(topology);
 
     for n in 0..1_000_000 {
         let msg = new_message(
@@ -24,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         driver.write(msg).await;
     }
 
-    let messages = driver.stop().await;
+    let messages = driver.created_messages().await;
 
     assert_eq!(
         1_000_000,
@@ -32,6 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "found {} created messages instead of 1.000.000 messages",
         messages.len()
     );
+
+    driver.stop().await;
 
     Ok(())
 }

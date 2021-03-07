@@ -4,7 +4,7 @@ use super::{Key, Message, StreamMessage, Topology, Value};
 
 use std::{collections::HashMap, sync::Mutex};
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -27,7 +27,12 @@ impl super::driver::Driver for Driver {
                 *reflush_needed = false;
             }
 
-            self.flush().await;
+            super::driver::flush(
+                self.inputs.clone(),
+                self.flush_needed.clone(),
+                &mut self.flushed_rx,
+            )
+            .await;
 
             let reflush_required: bool;
             {
@@ -105,36 +110,5 @@ impl Driver {
             flushed_rx: topo.flushed_rx,
             reflush_needed,
         }
-    }
-
-    async fn flush(&mut self) {
-        log::debug!("flushing");
-
-        let expected_acks = self.inputs.len() * self.flush_needed.load(Ordering::Relaxed);
-
-        log::debug!("await {} flushes", expected_acks);
-
-        for input in self.inputs.iter() {
-            log::debug!("request flush");
-
-            input
-                .1
-                .send(StreamMessage::Flush)
-                .await
-                .expect("failed to trigger flush");
-
-            log::debug!("requested flush");
-        }
-
-        for _ in 0..expected_acks {
-            log::debug!("await flush ack");
-
-            self.flushed_rx
-                .recv()
-                .await
-                .expect("failed to receive flush acknowledge");
-        }
-
-        log::debug!("all flushes acked");
     }
 }

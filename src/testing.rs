@@ -4,8 +4,10 @@ use super::{Key, Message, StreamMessage, Topology, Value};
 
 use std::{collections::HashMap, sync::Mutex};
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
+
+use async_trait::async_trait;
 
 pub struct Driver {
     created_messages: Arc<Mutex<Vec<Message<Key, Value>>>>,
@@ -16,6 +18,8 @@ pub struct Driver {
 
 #[cfg(test)]
 mod tests {
+    use super::super::driver::Driver;
+
     #[tokio::test]
     async fn exploration() {
         let mut topology = super::Topology::new();
@@ -33,9 +37,38 @@ mod tests {
             driver.write(msg).await;
         }
 
-        let messages = driver.stop().await;
+        let messages = driver.created_messages().await;
+
+        driver.stop().await;
 
         assert_eq!(1_000, messages.len(), "number of copied messages");
+    }
+}
+
+#[async_trait]
+impl super::driver::Driver for Driver {
+    async fn stop(mut self) {
+        log::debug!("stopping in memory driver");
+
+        super::driver::flush(
+            self.inputs.clone(),
+            self.flush_needed.clone(),
+            &mut self.flushed_rx,
+        )
+        .await;
+    }
+
+    async fn write(&self, message: Message<Key, Value>) {
+        log::debug!("write test message to topic {}", message.topic);
+
+        let topic_name = message.topic.clone();
+
+        self.inputs
+            .get(topic_name.as_str())
+            .expect(format!("failed to look up input stream {}", topic_name).as_str())
+            .send(StreamMessage::Message(message))
+            .await
+            .expect("failed to write message")
     }
 }
 
@@ -77,55 +110,16 @@ impl Driver {
         }
     }
 
-    async fn flush(&mut self) {
-        log::debug!("flushing");
-
-        let expected_acks = self.inputs.len() * self.flush_needed.load(Ordering::Relaxed);
-
-        log::debug!("await {} flushes", expected_acks);
-
-        for input in self.inputs.iter() {
-            log::debug!("request flush");
-
-            input
-                .1
-                .send(StreamMessage::Flush)
-                .await
-                .expect("failed to trigger flush");
-
-            log::debug!("requested flush");
-        }
-
-        for _ in 0..expected_acks {
-            log::debug!("await flush ack");
-
-            self.flushed_rx
-                .recv()
-                .await
-                .expect("failed to receive flush acknowledge");
-        }
-
-        log::debug!("all flushes acked");
-    }
-
-    pub async fn stop(mut self) -> Vec<Message<Key, Value>> {
+    pub async fn created_messages(&mut self) -> Vec<Message<Key, Value>> {
         log::debug!("stopping in memory driver");
 
-        self.flush().await;
+        super::driver::flush(
+            self.inputs.clone(),
+            self.flush_needed.clone(),
+            &mut self.flushed_rx,
+        )
+        .await;
 
         self.created_messages.lock().unwrap().to_owned()
-    }
-
-    pub async fn write(&mut self, message: Message<Key, Value>) {
-        log::debug!("write test message to topic {}", message.topic);
-
-        let topic_name = message.topic.clone();
-
-        self.inputs
-            .get(topic_name.as_str())
-            .expect(format!("failed to look up input stream {}", topic_name).as_str())
-            .send(StreamMessage::Message(message))
-            .await
-            .expect("failed to write message")
     }
 }
