@@ -14,18 +14,22 @@ pub struct Driver {
 impl Driver {
     pub fn new(_topo: Topology) -> Driver {
         use tokio::sync::oneshot::error::TryRecvError;
-        // TODO
-        // create kafka consumer
-        // register topics
+        // TODO: create postgresql client
+
+        // TODO: register topics
 
         let (tx, mut rx) = oneshot::channel::<()>();
 
         let task = tokio::spawn(async move {
             // until shutting down
             while let Err(TryRecvError::Empty) = rx.try_recv() {
-                // begin_transaction
-                // read and process messages for 100ms
-                // commit
+                // TODO: begin_transaction
+
+                // TODO: for 100ms or
+                // TODO: until all streams reached eof
+                // TODO: read and process messages
+
+                // TODO: commit
             }
         });
 
@@ -34,8 +38,10 @@ impl Driver {
 }
 
 #[async_trait]
-impl<'a> super::driver::Driver for Driver {
-    async fn write_to(&self, _topic: &str, _msg: Message<Key, Value>) {}
+impl super::driver::Driver for Driver {
+    async fn write(&self, _msg: Message<Key, Value>) {
+        // TODO
+    }
 
     async fn stop(mut self) {
         println!("shutting down");

@@ -8,3 +8,7 @@ pub fn copy(source: &'static str, target: &'static str) -> Topology {
 
     topology
 }
+
+pub fn noop() -> Topology {
+    Topology::new()
+}

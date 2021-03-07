@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             None,
             Some(format!("hello world {}", n)),
         );
-        driver.write_to(msg).await;
+        driver.write(msg).await;
     }
 
     let messages = driver.stop().await;

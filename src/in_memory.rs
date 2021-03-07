@@ -7,11 +7,52 @@ use std::{collections::HashMap, sync::Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use async_trait::async_trait;
+
 pub struct Driver {
     inputs: HashMap<&'static str, Sender<StreamMessage<Key, Value>>>,
     flush_needed: Arc<AtomicUsize>,
     flushed_rx: Receiver<()>,
     reflush_needed: Arc<Mutex<bool>>,
+}
+
+#[async_trait]
+impl super::driver::Driver for Driver {
+    async fn stop(mut self) {
+        log::debug!("stopping in memory driver");
+
+        loop {
+            {
+                let mut reflush_needed = self.reflush_needed.lock().unwrap();
+                *reflush_needed = false;
+            }
+
+            self.flush().await;
+
+            let reflush_required: bool;
+            {
+                reflush_required = *self.reflush_needed.lock().unwrap();
+            }
+            if reflush_required {
+                log::debug!("reflush required");
+            } else {
+                return;
+            }
+        }
+    }
+
+    async fn write(&self, message: Message<Key, Value>) {
+        log::debug!("write test message to topic {}", message.topic);
+
+        let topic_name = message.topic.clone();
+
+        self.inputs
+            .get(topic_name.as_str())
+            .expect(format!("failed to look up input stream {}", topic_name).as_str())
+            .send(StreamMessage::Message(message))
+            .await
+            .expect("failed to write message")
+    }
 }
 
 impl Driver {
@@ -73,10 +114,10 @@ impl Driver {
 
         log::debug!("await {} flushes", expected_acks);
 
-        for flusher in self.inputs.iter() {
+        for input in self.inputs.iter() {
             log::debug!("request flush");
 
-            flusher
+            input
                 .1
                 .send(StreamMessage::Flush)
                 .await
@@ -95,41 +136,5 @@ impl Driver {
         }
 
         log::debug!("all flushes acked");
-    }
-
-    pub async fn stop(mut self) {
-        log::debug!("stopping in memory driver");
-
-        loop {
-            {
-                let mut reflush_needed = self.reflush_needed.lock().unwrap();
-                *reflush_needed = false;
-            }
-
-            self.flush().await;
-
-            let reflush_required: bool;
-            {
-                reflush_required = *self.reflush_needed.lock().unwrap();
-            }
-            if reflush_required {
-                log::debug!("reflush required");
-            } else {
-                return;
-            }
-        }
-    }
-
-    pub async fn write_to(&mut self, message: Message<Key, Value>) {
-        log::debug!("write test message to topic {}", message.topic);
-
-        let topic_name = message.topic.clone();
-
-        self.inputs
-            .get(topic_name.as_str())
-            .expect(format!("failed to look up input stream {}", topic_name).as_str())
-            .send(StreamMessage::Message(message))
-            .await
-            .expect("failed to write message")
     }
 }

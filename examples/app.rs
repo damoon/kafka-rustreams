@@ -1,5 +1,3 @@
-use std::borrow::{Borrow, BorrowMut};
-
 use rdkafka::message::Timestamp;
 use rustreams::driver::Driver;
 use rustreams::Message;
@@ -19,16 +17,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let length2 = input2
         .map(|s: &Vec<u8>| -> usize { s.len() })
-        //.map(len)
         .map(usize_ser);
-    //.map(|i| { i.to_be_bytes().to_vec() });
-
-    let a3 = input2.map(len); // TODO not allowed
 
     input1.write_to("output1");
     length2.write_to("output2");
 
-    let mut app = kafka::Driver::new(topology);
+    let app = kafka::Driver::new(topology);
 
     let msg = Message {
         payload: Some("hello world".as_bytes().to_vec()),
@@ -39,17 +33,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         offset: 0,
     };
 
-    app.write_to("input1", msg).await;
+    app.write(msg).await;
 
-    // signal::ctrl_c().await?;
+    signal::ctrl_c().await?;
 
     app.stop().await;
 
     Ok(())
-}
-
-fn len(s: &Vec<u8>) -> usize {
-    s.len()
 }
 
 fn usize_ser(i: &usize) -> Vec<u8> {

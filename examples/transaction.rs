@@ -5,8 +5,7 @@ use std::time::Duration;
 
 use rand::Rng;
 
-use env_logger::{self, from_env};
-use log::{debug, error, info, log_enabled, Level};
+use env_logger::{self};
 use maplit::hashmap;
 
 use rdkafka::admin::{AdminClient, AdminOptions, NewTopic, TopicReplication};
@@ -21,7 +20,6 @@ use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::statistics::Statistics;
 use rdkafka::topic_partition_list::{Offset, TopicPartitionList};
 use rdkafka::util::Timeout;
-use rdkafka::Message;
 
 const ROUNDS: usize = 10;
 const MESSAGES: usize = 100000;
@@ -123,11 +121,7 @@ impl IsolationLevel {
     }
 }
 
-fn count_records(
-    consumer: &BaseConsumer,
-    topic: &str,
-    iso: IsolationLevel,
-) -> Result<usize, KafkaError> {
+fn count_records(consumer: &BaseConsumer, topic: &str) -> Result<usize, KafkaError> {
     log::info!("Seek to beginning.");
     consumer.poll(Timeout::Never);
     let offset = consumer
@@ -303,11 +297,7 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     consumer_counting_committed.assign(&tpl)?;
 
     log::info!("Count comitted messages.");
-    let commited_count = count_records(
-        &consumer_counting_committed,
-        &produce_topic,
-        IsolationLevel::ReadCommitted,
-    )?;
+    let commited_count = count_records(&consumer_counting_committed, &produce_topic)?;
 
     log::info!("Create consumer for counting uncommitted messages.");
     let consumer_counting_uncommitted = create_consumer(Some(hashmap! {
@@ -319,11 +309,7 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
     consumer_counting_uncommitted.assign(&tpl)?;
 
     log::info!("Count uncomitted messages.");
-    let uncommited_count = count_records(
-        &consumer_counting_uncommitted,
-        &produce_topic,
-        IsolationLevel::ReadUncommitted,
-    )?;
+    let uncommited_count = count_records(&consumer_counting_uncommitted, &produce_topic)?;
 
     // Commit the first 10 messages.
     log::info!("Commit the first 10 messages.");
@@ -371,11 +357,7 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
         ROUNDS * MESSAGES
     );
     assert_eq!(
-        count_records(
-            &consumer_counting_uncommitted,
-            &produce_topic,
-            IsolationLevel::ReadUncommitted
-        )? - uncommited_count,
+        count_records(&consumer_counting_uncommitted, &produce_topic)? - uncommited_count,
         ROUNDS * MESSAGES,
     );
     log::info!(
@@ -383,11 +365,7 @@ async fn test_transaction_commit() -> Result<(), Box<dyn Error>> {
         ROUNDS * MESSAGES
     );
     assert_eq!(
-        count_records(
-            &consumer_counting_committed,
-            &produce_topic,
-            IsolationLevel::ReadCommitted
-        )? - commited_count,
+        count_records(&consumer_counting_committed, &produce_topic)? - commited_count,
         ROUNDS * MESSAGES,
     );
 

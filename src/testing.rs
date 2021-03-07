@@ -14,6 +14,31 @@ pub struct Driver {
     flushed_rx: Receiver<()>,
 }
 
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn exploration() {
+        let mut topology = super::Topology::new();
+        topology.read_from("input_topic").write_to("output_topic");
+
+        let mut driver = super::Driver::start(topology);
+
+        for n in 0..1_000 {
+            let msg = super::super::new_message(
+                "input_topic".to_string(),
+                None,
+                Some(format!("hello world {}", n)),
+            );
+
+            driver.write(msg).await;
+        }
+
+        let messages = driver.stop().await;
+
+        assert_eq!(1_000, messages.len(), "number of copied messages");
+    }
+}
+
 impl Driver {
     pub fn start(topo: Topology) -> Driver {
         log::debug!("start in memory driver");
@@ -59,10 +84,10 @@ impl Driver {
 
         log::debug!("await {} flushes", expected_acks);
 
-        for flusher in self.inputs.iter() {
+        for input in self.inputs.iter() {
             log::debug!("request flush");
 
-            flusher
+            input
                 .1
                 .send(StreamMessage::Flush)
                 .await
@@ -91,7 +116,7 @@ impl Driver {
         self.created_messages.lock().unwrap().to_owned()
     }
 
-    pub async fn write_to(&mut self, message: Message<Key, Value>) {
+    pub async fn write(&mut self, message: Message<Key, Value>) {
         log::debug!("write test message to topic {}", message.topic);
 
         let topic_name = message.topic.clone();
