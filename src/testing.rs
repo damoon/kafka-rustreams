@@ -21,13 +21,32 @@ mod tests {
     use super::super::driver::Driver;
 
     #[tokio::test]
-    async fn exploration() {
+    async fn start_stop_driver() {
+        process_messages(0).await
+    }
+
+    #[tokio::test]
+    async fn copy_one_message() {
+        process_messages(1).await
+    }
+
+    #[tokio::test]
+    async fn copy_fortytwo_messages() {
+        process_messages(42).await
+    }
+
+    #[tokio::test]
+    async fn copy_10k_messages() {
+        process_messages(10_000).await
+    }
+
+    async fn process_messages(n: usize) {
         let mut topology = super::Topology::new();
         topology.read_from("input_topic").write_to("output_topic");
 
         let mut driver = super::Driver::start(topology);
 
-        for n in 0..1_000 {
+        for n in 0..n {
             let msg = super::super::new_message(
                 "input_topic".to_string(),
                 None,
@@ -41,7 +60,7 @@ mod tests {
 
         driver.stop().await;
 
-        assert_eq!(1_000, messages.len(), "number of copied messages");
+        assert_eq!(n, messages.len(), "number of copied messages");
     }
 }
 
