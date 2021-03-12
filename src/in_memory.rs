@@ -2,9 +2,9 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use super::{Key, Message, StreamMessage, Topology, Value};
 
-use std::{collections::HashMap, sync::Mutex};
+use std::collections::HashMap;
 
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -13,7 +13,7 @@ pub struct Driver {
     inputs: HashMap<&'static str, Sender<StreamMessage<Key, Value>>>,
     flush_needed: Arc<AtomicUsize>,
     flushed_rx: Receiver<()>,
-    reflush_needed: Arc<Mutex<bool>>,
+    reflush_needed: Arc<AtomicBool>,
 }
 
 #[async_trait]
@@ -22,10 +22,7 @@ impl super::driver::Driver for Driver {
         log::debug!("stopping in memory driver");
 
         loop {
-            {
-                let mut reflush_needed = self.reflush_needed.lock().unwrap();
-                *reflush_needed = false;
-            }
+            self.reflush_needed.store(false, Ordering::SeqCst);
 
             super::driver::flush(
                 self.inputs.clone(),
@@ -34,11 +31,7 @@ impl super::driver::Driver for Driver {
             )
             .await;
 
-            let reflush_required: bool;
-            {
-                reflush_required = *self.reflush_needed.lock().unwrap();
-            }
-            if reflush_required {
+            if self.reflush_needed.load(Ordering::SeqCst) {
                 log::debug!("reflush required");
             } else {
                 return;
@@ -53,7 +46,7 @@ impl super::driver::Driver for Driver {
 
         self.inputs
             .get(topic_name.as_str())
-            .expect(format!("failed to look up input stream {}", topic_name).as_str())
+            .unwrap_or_else(|| panic!("failed to look up input stream {}", topic_name))
             .send(StreamMessage::Message(message))
             .await
             .expect("failed to write message")
@@ -68,7 +61,7 @@ impl Driver {
         let mut writes_rx = topo.writes_rx;
 
         let inputs = topo.inputs.clone();
-        let reflush_needed = Arc::new(Mutex::new(false));
+        let reflush_needed = Arc::new(AtomicBool::new(false));
         let reflush_needed_ref = reflush_needed.clone();
 
         tokio::spawn(async move {
@@ -89,8 +82,7 @@ impl Driver {
                             }
                         }
 
-                        let mut reflush_needed = reflush_needed_ref.lock().unwrap();
-                        *reflush_needed = true;
+                        reflush_needed_ref.store(true, Ordering::SeqCst);
                     }
                     Some(StreamMessage::Flush) => {
                         flushed_tx.send(()).await.expect("failed to ack flush")

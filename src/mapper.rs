@@ -17,11 +17,8 @@ impl<K: Send + 'static, V1: Send + 'static, V2: Send + 'static> Mapper<K, V1, V2
             loop {
                 match source.recv().await {
                     Some(StreamMessage::Message(message)) => {
-                        let new_payload: Option<V2> = match &message.payload {
-                            Some(value) => Some(map(value)),
-                            None => None,
-                        };
-
+                        let new_payload: Option<V2> =
+                            message.payload.as_ref().map(|value| map(value));
                         let new_message = message.with_value(new_payload);
 
                         if let Err(e) = tx.send(StreamMessage::Message(new_message)).await {

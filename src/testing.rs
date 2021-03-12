@@ -41,7 +41,7 @@ mod tests {
     }
 
     async fn process_messages(n: usize) {
-        let mut topology = super::Topology::new();
+        let mut topology = super::Topology::default();
         topology.read_from("input_topic").write_to("output_topic");
 
         let mut driver = super::Driver::start(topology);
@@ -84,7 +84,7 @@ impl super::driver::Driver for Driver {
 
         self.inputs
             .get(topic_name.as_str())
-            .expect(format!("failed to look up input stream {}", topic_name).as_str())
+            .unwrap_or_else(|| panic!("failed to look up input stream {}", topic_name))
             .send(StreamMessage::Message(message))
             .await
             .expect("failed to write message")

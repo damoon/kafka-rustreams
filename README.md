@@ -32,3 +32,5 @@ Keeping the process pinned to a CPU core improves single threaded performance a 
 Run `cargo fmt`.
 
 Time as an shell alias vs the binary command line tool. https://stackoverflow.com/questions/774556/peak-memory-usage-of-a-linux-unix-process
+
+Run `cargo clippy`.

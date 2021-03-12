@@ -10,7 +10,7 @@ use rustreams::Topology;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut topology = Topology::new();
+    let mut topology = Topology::default();
 
     let input1 = topology.read_from("input1"); // TODO only allow one stream per topic
     let input2 = topology.read_from("input2");

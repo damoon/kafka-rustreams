@@ -40,14 +40,8 @@ pub fn new_message(
     key: Option<String>,
     value: Option<String>,
 ) -> Message<Key, Value> {
-    let key = match key {
-        None => None,
-        Some(key) => Some(key.as_bytes().to_vec()),
-    };
-    let payload = match value {
-        None => None,
-        Some(value) => Some(value.as_bytes().to_vec()),
-    };
+    let key = key.map(|key| key.as_bytes().to_vec());
+    let payload = value.map(|value| value.as_bytes().to_vec());
 
     Message {
         payload,
@@ -95,7 +89,7 @@ trait WithTopic<K, V> {
 impl<K, V1, V2> WithChange<K, V2> for Message<K, V1> {
     fn with_value(self, payload: Option<V2>) -> Message<K, V2> {
         Message::<K, V2> {
-            payload: payload,
+            payload,
             key: self.key,
             topic: self.topic,
             timestamp: self.timestamp,
@@ -111,7 +105,7 @@ impl<K, V> WithTopic<K, V> for Message<K, V> {
         Message::<K, V> {
             payload: self.payload,
             key: self.key,
-            topic: topic,
+            topic,
             timestamp: self.timestamp,
             partition: self.partition,
             offset: self.offset,
@@ -133,7 +127,7 @@ pub struct Topology {
 }
 
 impl<'a> Topology {
-    pub fn new() -> Topology {
+    pub fn default() -> Topology {
         let inputs = HashMap::new();
         let flush_needed = Arc::new(AtomicUsize::new(0));
         let (flushed_tx, flushed_rx) = channel(1);
