@@ -13,7 +13,7 @@ rand = "0.3.15"
 tokio = { version = "1.1.0", features = ["full"] }
 env_logger = "0.8.2"
 log = "0.4.14"
-futures = "0.3.12"
+futures = "0.3.14"
 serde = "1.0.123"
 serde_json = "1.0.61"
 async-trait = "0.1.42"
