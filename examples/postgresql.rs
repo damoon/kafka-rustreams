@@ -1,7 +1,6 @@
-use rustreams::driver::Driver;
+use rustreams::driver::{Driver, postgresql};
 use rustreams::example_topologies;
 use rustreams::new_message;
-use rustreams::driver::postgresql;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let topology = example_topologies::copy("input_topic", "output_topic");
 
-    let driver = postgresql::Driver::new(topology);
+    let driver = postgresql::Driver::new("host=localhost user=postgres", topology).await?;
 
     for n in 0..10 {
         let msg = new_message(

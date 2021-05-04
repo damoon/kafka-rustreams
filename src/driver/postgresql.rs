@@ -6,13 +6,33 @@ use tokio::task::JoinHandle;
 
 use async_trait::async_trait;
 
+use tokio_postgres::{Client, Error, NoTls};
+
 pub struct Driver {
     tx: oneshot::Sender<()>,
     task: JoinHandle<()>,
+    client: Client,
 }
 
 impl Driver {
-    pub fn new(_topo: Topology) -> Driver {
+    pub async fn new(config: &str, _topo: Topology) -> Result<Driver, Error> {
+
+        let (client, connection) =
+            tokio_postgres::connect(config, NoTls).await?;
+
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
+
+        client.execute("CREATE TABLE offsets (
+                application VARCHAR(255),
+                topic       VARCHAR(255),
+                offset      BIGINT,
+                PRIMARY KEY(application, topic)
+            )", &[]).await?;
+
         use tokio::sync::oneshot::error::TryRecvError;
         // TODO: create postgresql client
 
@@ -33,7 +53,7 @@ impl Driver {
             }
         });
 
-        Driver { tx, task }
+        Ok(Driver { tx, task, client })
     }
 }
 
