@@ -1,7 +1,7 @@
 use rustreams::driver::Driver;
 use rustreams::example_topologies;
 use rustreams::new_message;
-use rustreams::postgresql;
+use rustreams::driver::postgresql;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

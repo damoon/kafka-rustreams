@@ -1,10 +1,9 @@
 use rdkafka::message::Timestamp;
-use rustreams::driver::Driver;
+use rustreams::driver::{Driver, kafka};
 use rustreams::Message;
 
 use tokio::signal;
 
-use rustreams::kafka;
 use rustreams::mapper::Mapper;
 use rustreams::Topology;
 

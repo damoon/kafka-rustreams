@@ -1,6 +1,5 @@
-use rustreams::driver::Driver;
+use rustreams::driver::{Driver, kafka};
 use rustreams::example_topologies;
-use rustreams::kafka;
 use rustreams::new_message;
 
 #[tokio::main]

@@ -1,6 +1,7 @@
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use super::{Key, Message, StreamMessage, Topology, Value};
+use super::super::{Message, Topology};
+use super::{Key, StreamMessage, Value};
 
 use std::{collections::HashMap, sync::Mutex};
 
@@ -18,7 +19,7 @@ pub struct Driver {
 
 #[cfg(test)]
 mod tests {
-    use super::super::driver::Driver;
+    use super::super::Driver;
 
     #[tokio::test]
     async fn start_stop_driver() {
@@ -47,7 +48,7 @@ mod tests {
         let mut driver = super::Driver::start(topology);
 
         for n in 0..n {
-            let msg = super::super::new_message(
+            let msg = super::super::super::new_message(
                 "input_topic".to_string(),
                 None,
                 Some(format!("hello world {}", n)),
@@ -65,11 +66,11 @@ mod tests {
 }
 
 #[async_trait]
-impl super::driver::Driver for Driver {
+impl super::Driver for Driver {
     async fn stop(mut self) {
         log::debug!("stopping in memory driver");
 
-        super::driver::flush(
+        super::flush(
             self.inputs.clone(),
             self.flush_needed.clone(),
             &mut self.flushed_rx,
@@ -132,7 +133,7 @@ impl Driver {
     pub async fn created_messages(&mut self) -> Vec<Message<Key, Value>> {
         log::debug!("stopping in memory driver");
 
-        super::driver::flush(
+        super::flush(
             self.inputs.clone(),
             self.flush_needed.clone(),
             &mut self.flushed_rx,

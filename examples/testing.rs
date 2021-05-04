@@ -1,7 +1,6 @@
-use rustreams::driver::Driver;
+use rustreams::driver::{Driver, testing};
 use rustreams::example_topologies;
 use rustreams::new_message;
-use rustreams::testing;
 
 use env_logger;
 

@@ -1,6 +1,7 @@
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use super::{Key, Message, StreamMessage, Topology, Value};
+use super::super::{Message, Topology};
+use super::{Key, StreamMessage, Value};
 
 use std::collections::HashMap;
 
@@ -17,14 +18,14 @@ pub struct Driver {
 }
 
 #[async_trait]
-impl super::driver::Driver for Driver {
+impl super::Driver for Driver {
     async fn stop(mut self) {
         log::debug!("stopping in memory driver");
 
         loop {
             self.reflush_needed.store(false, Ordering::SeqCst);
 
-            super::driver::flush(
+            super::flush(
                 self.inputs.clone(),
                 self.flush_needed.clone(),
                 &mut self.flushed_rx,

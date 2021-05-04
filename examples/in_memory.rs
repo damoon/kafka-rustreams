@@ -1,6 +1,5 @@
-use rustreams::driver::Driver;
+use rustreams::driver::{Driver, in_memory};
 use rustreams::example_topologies;
-use rustreams::in_memory;
 use rustreams::new_message;
 
 #[tokio::main]

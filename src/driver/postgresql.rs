@@ -1,6 +1,6 @@
 use crate::{Key, Message, Value};
 
-use super::Topology;
+use super::super::Topology;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
@@ -38,7 +38,7 @@ impl Driver {
 }
 
 #[async_trait]
-impl super::driver::Driver for Driver {
+impl super::Driver for Driver {
     async fn write(&self, _msg: Message<Key, Value>) {
         // TODO
     }

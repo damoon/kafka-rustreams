@@ -7,6 +7,11 @@ use std::sync::Arc;
 use super::{Key, StreamMessage, Value};
 use tokio::sync::mpsc::{Receiver, Sender};
 
+pub mod in_memory;
+pub mod kafka;
+pub mod postgresql;
+pub mod testing;
+
 #[async_trait]
 pub trait Driver {
     async fn write(&self, msg: super::Message<super::Key, super::Value>);
