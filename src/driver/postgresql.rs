@@ -16,9 +16,7 @@ pub struct Driver {
 
 impl Driver {
     pub async fn new(config: &str, _topo: Topology) -> Result<Driver, Error> {
-
-        let (client, connection) =
-            tokio_postgres::connect(config, NoTls).await?;
+        let (client, connection) = tokio_postgres::connect(config, NoTls).await?;
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -26,17 +24,23 @@ impl Driver {
             }
         });
 
-        client.execute("CREATE TABLE offsets (
+        client
+            .execute(
+                "CREATE TABLE IF NOT EXISTS offsets (
                 application VARCHAR(255),
                 topic       VARCHAR(255),
-                offset      BIGINT,
+                \"offset\"      BIGINT,
                 PRIMARY KEY(application, topic)
-            )", &[]).await?;
+            )",
+                &[],
+            )
+            .await?;
+
+        // TODO: create tables per topic
+        // TODO: prepare statements for inserts and selects
 
         use tokio::sync::oneshot::error::TryRecvError;
-        // TODO: create postgresql client
-
-        // TODO: register topics
+        // TODO: listen for changes https://github.com/sfackler/rust-postgres/issues/149
 
         let (tx, mut rx) = oneshot::channel::<()>();
 
