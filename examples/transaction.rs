@@ -4,6 +4,7 @@ use std::error::Error;
 use std::time::Duration;
 
 use rand::Rng;
+use rand::distributions::Alphanumeric;
 
 use env_logger::{self};
 use maplit::hashmap;
@@ -34,26 +35,29 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn rand_test_topic() -> String {
-    let id = rand::thread_rng()
-        .gen_ascii_chars()
+    let id: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
         .take(10)
-        .collect::<String>();
+        .map(char::from)
+        .collect();
     format!("__test_{}", id)
 }
 
 pub fn rand_test_group() -> String {
-    let id = rand::thread_rng()
-        .gen_ascii_chars()
+    let id: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
         .take(10)
-        .collect::<String>();
+        .map(char::from)
+        .collect();
     format!("__test_{}", id)
 }
 
 pub fn rand_test_transactional_id() -> String {
-    let id = rand::thread_rng()
-        .gen_ascii_chars()
+    let id: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
         .take(10)
-        .collect::<String>();
+        .map(char::from)
+        .collect();
     format!("__test_{}", id)
 }
 
