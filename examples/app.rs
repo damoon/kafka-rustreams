@@ -1,5 +1,5 @@
 use rdkafka::message::Timestamp;
-use rustreams::driver::{Driver, kafka};
+use rustreams::driver::{kafka, Driver};
 use rustreams::Message;
 
 use tokio::signal;
@@ -24,8 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = kafka::Driver::new(topology);
 
     let msg = Message {
-        payload: Some("hello world".as_bytes().to_vec()),
         key: None,
+        value: Some("hello world".as_bytes().to_vec()),
         topic: "topic".to_string(),
         timestamp: Timestamp::NotAvailable,
         partition: 0,

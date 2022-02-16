@@ -22,8 +22,8 @@ enum StreamMessage<K, V> {
 
 #[derive(Debug, Clone)]
 pub struct Message<K, V> {
-    pub payload: Option<V>,
     pub key: Option<K>,
+    pub value: Option<V>,
     pub topic: String,
     pub timestamp: Timestamp,
     pub partition: i32,
@@ -37,11 +37,11 @@ pub fn new_message(
     value: Option<String>,
 ) -> Message<Key, Value> {
     let key = key.map(|key| key.as_bytes().to_vec());
-    let payload = value.map(|value| value.as_bytes().to_vec());
+    let value = value.map(|value| value.as_bytes().to_vec());
 
     Message {
-        payload,
         key,
+        value,
         topic,
         timestamp: Timestamp::NotAvailable,
         partition: 0,
@@ -54,7 +54,7 @@ impl<K, V> Message<K, V> {
     ///
     /// This function is mainly useful in tests of `rust-rdkafka` itself.
     pub fn new(
-        payload: Option<V>,
+        value: Option<V>,
         key: Option<K>,
         topic: String,
         timestamp: Timestamp,
@@ -63,8 +63,8 @@ impl<K, V> Message<K, V> {
         // headers: Option<OwnedHeaders>,
     ) -> Message<K, V> {
         Message {
-            payload,
             key,
+            value,
             topic,
             timestamp,
             partition,
@@ -83,9 +83,9 @@ trait WithTopic<K, V> {
 }
 
 impl<K, V1, V2> WithChange<K, V2> for Message<K, V1> {
-    fn with_value(self, payload: Option<V2>) -> Message<K, V2> {
+    fn with_value(self, value: Option<V2>) -> Message<K, V2> {
         Message::<K, V2> {
-            payload,
+            value,
             key: self.key,
             topic: self.topic,
             timestamp: self.timestamp,
@@ -99,8 +99,8 @@ impl<K, V1, V2> WithChange<K, V2> for Message<K, V1> {
 impl<K, V> WithTopic<K, V> for Message<K, V> {
     fn with_topic(self, topic: String) -> Message<K, V> {
         Message::<K, V> {
-            payload: self.payload,
             key: self.key,
+            value: self.value,
             topic,
             timestamp: self.timestamp,
             partition: self.partition,
