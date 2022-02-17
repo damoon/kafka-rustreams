@@ -18,6 +18,7 @@ serde = "1.0.125"
 serde_json = "1.0.64"
 async-trait = "0.1.50"
 tokio-postgres = "0.7.2"
+postgres-protocol = "0.6.0"
 
 [profile.release]
 lto = true

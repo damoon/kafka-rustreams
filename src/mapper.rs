@@ -1,6 +1,6 @@
 use tokio::sync::mpsc::channel;
 
-use super::{Stream, StreamMessage, WithChange};
+use super::{Stream, StreamMessage};
 
 pub trait Mapper<K, V1, V2> {
     fn map(self, m: impl Send + 'static + Fn(&V1) -> V2) -> Stream<K, V2>;
@@ -39,7 +39,7 @@ impl<K: Send + 'static, V1: Send + 'static, V2: Send + 'static> Mapper<K, V1, V2
 
         Stream {
             rx,
-            flushed: self.flushed,
+            //flushed: self.flushed,
             flush_needed: self.flush_needed,
             appends: self.appends,
         }

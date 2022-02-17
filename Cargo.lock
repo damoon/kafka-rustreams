@@ -677,6 +677,7 @@ dependencies = [
  "futures",
  "log",
  "maplit",
+ "postgres-protocol",
  "rand",
  "rdkafka",
  "serde",

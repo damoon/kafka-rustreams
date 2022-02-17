@@ -72,36 +72,24 @@ impl<K, V> Message<K, V> {
             // headers,
         }
     }
-}
 
-trait WithChange<K, V> {
-    fn with_value(self, payload: Option<V>) -> Message<K, V>;
-}
-
-trait WithTopic<K, V> {
-    fn with_topic(self, topic: String) -> Message<K, V>;
-}
-
-impl<K, V1, V2> WithChange<K, V2> for Message<K, V1> {
-    fn with_value(self, value: Option<V2>) -> Message<K, V2> {
-        Message::<K, V2> {
-            value,
+    fn with_topic(self, topic: String) -> Message<K, V> {
+        Message::<K, V> {
             key: self.key,
-            topic: self.topic,
+            value: self.value,
+            topic,
             timestamp: self.timestamp,
             partition: self.partition,
             offset: self.offset,
             // headers,
         }
     }
-}
 
-impl<K, V> WithTopic<K, V> for Message<K, V> {
-    fn with_topic(self, topic: String) -> Message<K, V> {
-        Message::<K, V> {
+    fn with_value<W>(self, value: Option<W>) -> Message<K, W> {
+        Message::<K, W> {
             key: self.key,
-            value: self.value,
-            topic,
+            value,
+            topic: self.topic,
             timestamp: self.timestamp,
             partition: self.partition,
             offset: self.offset,
@@ -147,7 +135,7 @@ impl<'a> Topology {
             rx,
             appends: self.writes_tx.clone(),
             flush_needed: self.flush_needed.clone(),
-            flushed: self.flushed_tx.clone(),
+            //flushed: self.flushed_tx.clone(),
         }
     }
 }
@@ -156,7 +144,7 @@ pub struct Stream<K, V> {
     rx: Receiver<StreamMessage<K, V>>,
     appends: Sender<StreamMessage<Key, Value>>,
     flush_needed: Arc<AtomicUsize>,
-    flushed: Sender<()>,
+    //flushed: Sender<()>,
 }
 
 type Key = Vec<u8>;
