@@ -1,4 +1,5 @@
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use serde::{Deserialize, Serialize};
 
 use std::collections::HashMap;
 
@@ -23,7 +24,7 @@ enum StreamMessage<K, V> {
 #[derive(Debug, Clone)]
 enum StreamWrite<K, V> {
     Flush,
-    Write(String, Message<K, V>),
+    Write(&'static str, Message<K, V>),
 }
 
 #[derive(Debug, Clone,)]
@@ -32,20 +33,6 @@ pub struct Message<K, V> {
     pub value: Option<V>,
     pub timestamp: Timestamp,
     // headers: Option<OwnedHeaders>,
-}
-
-pub fn new_message(
-    key: Option<String>,
-    value: Option<String>,
-) -> Message<Key, Value> {
-    let key = key.map(|key| key.as_bytes().to_vec());
-    let value = value.map(|value| value.as_bytes().to_vec());
-
-    Message {
-        key,
-        value,
-        timestamp: Timestamp::NotAvailable,
-    }
 }
 
 impl<K, V> Message<K, V> {
@@ -59,15 +46,15 @@ impl<K, V> Message<K, V> {
 }
 
 pub struct Topology {
-    inputs: HashMap<&'static str, Sender<StreamMessage<Key, Value>>>,
+    inputs: HashMap<&'static str, Sender<StreamMessage<Deserialize, Deserialize>>>,
 
     flush_needed: Arc<AtomicUsize>,
 
     flushed_tx: Sender<()>,
     flushed_rx: Receiver<()>,
 
-    writes_tx: Sender<StreamWrite<Key, Value>>,
-    writes_rx: Receiver<StreamWrite<Key, Value>>,
+    writes_tx: Sender<StreamWrite<Serialize, Serialize>>,
+    writes_rx: Receiver<StreamWrite<Serialize, Serialize>>,
 }
 
 impl Default for Topology {
@@ -88,8 +75,8 @@ impl Default for Topology {
     }
 }
 
-impl<'a> Topology {
-    pub fn read_from(&mut self, topic: &'static str) -> Stream<Key, Value> {
+impl<K: Deserialize, V: Deserialize> Topology {
+    pub fn read_from(&mut self, topic: &'static str) -> Stream<K, V> {
         let (tx, rx) = channel(CHANNEL_BUFFER_SIZE);
         self.inputs.insert(topic, tx);
 
@@ -104,25 +91,21 @@ impl<'a> Topology {
 
 pub struct Stream<K, V> {
     rx: Receiver<StreamMessage<K, V>>,
-    writes: Sender<StreamWrite<Key, Value>>,
+    writes: Sender<StreamWrite<K, V>>,
     flush_needed: Arc<AtomicUsize>,
     //flushed: Sender<()>,
 }
 
-type Key = Vec<u8>;
-type Value = Vec<u8>;
-
-impl Stream<Key, Value> {
-    pub fn write_to(mut self, topic: &str) {
+impl <K: Serialize, V: Serialize> Stream<K, V> {
+    pub fn write_to(mut self, topic: &'static str) {
         self.flush_needed.fetch_add(1, Ordering::Relaxed);
-        let topic = topic.to_string();
 
         tokio::spawn(async move {
             loop {
                 match self.rx.recv().await {
                     Some(StreamMessage::Message(message)) => {
                         self.writes
-                            .send(StreamWrite::Write(topic.clone(), message))
+                            .send(StreamWrite::Write(topic, message))
                             .await
                             .expect("failed to forward message");
                     }

@@ -53,8 +53,8 @@ mod tests {
 
         for n in 0..n {
             let msg = crate::Message{
-                key: None,
-                value: Some(format!("hello world {}", n).to_string()),
+                key: "".to_string(),
+                value: format!("hello world {}", n).to_string(),
                 timestamp: Timestamp::NotAvailable,
             };
 

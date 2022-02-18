@@ -67,7 +67,7 @@ impl Driver {
             loop {
                 match writes_rx.recv().await {
                     Some(StreamWrite::Write(topic_name, message)) => {
-                        let topic = inputs.get(topic_name.as_str());
+                        let topic = inputs.get(topic_name);
                         match topic {
                             None => log::debug!("droping message for topic {topic_name}"),
                             Some(sender) => {
