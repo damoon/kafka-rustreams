@@ -1,5 +1,7 @@
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use crate::StreamWrite;
+
 use super::super::{Message, Topology};
 use super::{Key, StreamMessage, Value};
 
@@ -19,6 +21,8 @@ pub struct Driver {
 
 #[cfg(test)]
 mod tests {
+    use rdkafka::Timestamp;
+
     use super::super::Driver;
 
     #[tokio::test]
@@ -48,13 +52,13 @@ mod tests {
         let mut driver = super::Driver::start(topology);
 
         for n in 0..n {
-            let msg = super::super::super::new_message(
-                "input_topic".to_string(),
-                None,
-                Some(format!("hello world {}", n)),
-            );
+            let msg = crate::Message{
+                key: None,
+                value: Some(format!("hello world {}", n).to_string()),
+                timestamp: Timestamp::NotAvailable,
+            };
 
-            driver.write(msg).await;
+            driver.write("input_topic", msg).await;
         }
 
         let messages = driver.created_messages().await;
@@ -78,14 +82,10 @@ impl super::Driver for Driver {
         .await;
     }
 
-    async fn write(&self, message: Message<Key, Value>) {
-        log::debug!("write test message to topic {}", message.topic);
-
-        let topic_name = message.topic.clone();
-
+    async fn write(&self, topic: &str, message: Message<Key, Value>) {
         self.inputs
-            .get(topic_name.as_str())
-            .unwrap_or_else(|| panic!("failed to look up input stream {}", topic_name))
+            .get(topic)
+            .unwrap_or_else(|| panic!("failed to look up input stream {}", topic))
             .send(StreamMessage::Message(message))
             .await
             .expect("failed to write message")
@@ -105,12 +105,10 @@ impl Driver {
         tokio::spawn(async move {
             loop {
                 match writes_rx.recv().await {
-                    Some(StreamMessage::Message(message)) => {
-                        log::debug!("caught created message");
-
+                    Some(StreamWrite::Write(topic, message)) => {
                         created_messages_clone.lock().unwrap().push(message.clone());
                     }
-                    Some(StreamMessage::Flush) => {
+                    Some(StreamWrite::Flush) => {
                         flushed_tx.send(()).await.expect("failed to ack flush")
                     }
                     None => {

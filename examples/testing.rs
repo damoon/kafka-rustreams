@@ -1,5 +1,5 @@
 use rustreams::driver::{Driver, testing};
-use rustreams::example_topologies;
+use rustreams::{example_topologies, Message};
 use rustreams::new_message;
 
 use env_logger;
@@ -16,12 +16,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut driver = testing::Driver::start(topology);
 
     for n in 0..1_000_000 {
-        let msg = new_message(
-            "input_topic".to_string(),
-            None,
-            Some(format!("hello world {}", n)),
-        );
-        driver.write(msg).await;
+        let msg = Message{
+            key: None,
+            value: Some(format!("hello world {}", n)),
+            timestamp: rustreams::Timestamp::NotAvailable,
+        };
+        driver.write("input_topic", msg).await;
     }
 
     let messages = driver.created_messages().await;

@@ -14,13 +14,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let driver = in_memory::Driver::start(topology);
 
     for n in 0..1_000_000 {
-        let msg = new_message(
-            "input_topic".to_string(),
-            None,
-            Some(format!("hello world {}", n)),
-        );
-
-        driver.write(msg).await;
+        let msg = rustreams::Message {
+            key:None,
+            value: Some(format!("hello world {}", n)),
+            timestamp: rustreams::Timestamp::NotAvailable
+        };
+        driver.write("input_topic", msg).await;
     }
 
     driver.stop().await;

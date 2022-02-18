@@ -1,5 +1,5 @@
 use rustreams::driver::{postgresql, Driver};
-use rustreams::example_topologies;
+use rustreams::{example_topologies, Message};
 use rustreams::new_message;
 
 #[tokio::main]
@@ -18,13 +18,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     for n in 0..10 {
-        let msg = new_message(
-            "input_topic".to_string(),
-            None,
-            Some(format!("hello world {}", n)),
-        );
+        let msg = Message{
+            key: None,
+            value: Some(format!("hello world {}", n)),
+            timestamp: Timestamp::Unavailable,
+        };
 
-        driver.write(msg).await;
+        driver.write("input_topic", msg).await;
     }
 
     driver.stop().await;

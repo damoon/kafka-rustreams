@@ -26,13 +26,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let msg = Message {
         key: None,
         value: Some("hello world".as_bytes().to_vec()),
-        topic: "topic".to_string(),
         timestamp: Timestamp::NotAvailable,
-        partition: 0,
-        offset: 0,
     };
 
-    app.write(msg).await;
+    app.write("topic", msg).await;
 
     signal::ctrl_c().await?;
 

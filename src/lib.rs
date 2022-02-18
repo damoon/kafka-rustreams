@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 // use rdkafka::message::{Message, OwnedMessage};
-use rdkafka::message::Timestamp;
+pub use rdkafka::message::Timestamp;
 
 pub mod driver;
 pub mod example_topologies;
@@ -21,18 +21,20 @@ enum StreamMessage<K, V> {
 }
 
 #[derive(Debug, Clone)]
+enum StreamWrite<K, V> {
+    Flush,
+    Write(String, Message<K, V>),
+}
+
+#[derive(Debug, Clone,)]
 pub struct Message<K, V> {
     pub key: Option<K>,
     pub value: Option<V>,
-    pub topic: String,
     pub timestamp: Timestamp,
-    pub partition: i32,
-    pub offset: i64,
     // headers: Option<OwnedHeaders>,
 }
 
 pub fn new_message(
-    topic: String,
     key: Option<String>,
     value: Option<String>,
 ) -> Message<Key, Value> {
@@ -42,58 +44,16 @@ pub fn new_message(
     Message {
         key,
         value,
-        topic,
         timestamp: Timestamp::NotAvailable,
-        partition: 0,
-        offset: 0,
     }
 }
 
 impl<K, V> Message<K, V> {
-    /// Creates a new message with the specified content.
-    ///
-    /// This function is mainly useful in tests of `rust-rdkafka` itself.
-    pub fn new(
-        value: Option<V>,
-        key: Option<K>,
-        topic: String,
-        timestamp: Timestamp,
-        partition: i32,
-        offset: i64,
-        // headers: Option<OwnedHeaders>,
-    ) -> Message<K, V> {
-        Message {
-            key,
-            value,
-            topic,
-            timestamp,
-            partition,
-            offset,
-            // headers,
-        }
-    }
-
-    fn with_topic(self, topic: String) -> Message<K, V> {
-        Message::<K, V> {
-            key: self.key,
-            value: self.value,
-            topic,
-            timestamp: self.timestamp,
-            partition: self.partition,
-            offset: self.offset,
-            // headers,
-        }
-    }
-
     fn with_value<W>(self, value: Option<W>) -> Message<K, W> {
         Message::<K, W> {
             key: self.key,
             value,
-            topic: self.topic,
             timestamp: self.timestamp,
-            partition: self.partition,
-            offset: self.offset,
-            // headers,
         }
     }
 }
@@ -106,34 +66,36 @@ pub struct Topology {
     flushed_tx: Sender<()>,
     flushed_rx: Receiver<()>,
 
-    writes_tx: Sender<StreamMessage<Key, Value>>,
-    writes_rx: Receiver<StreamMessage<Key, Value>>,
+    writes_tx: Sender<StreamWrite<Key, Value>>,
+    writes_rx: Receiver<StreamWrite<Key, Value>>,
+}
+
+impl Default for Topology {
+    fn default() -> Self {
+            let inputs = HashMap::new();
+            let flush_needed = Arc::new(AtomicUsize::new(0));
+            let (flushed_tx, flushed_rx) = channel(1);
+            let (writes_tx, writes_rx) = channel(CHANNEL_BUFFER_SIZE);
+    
+            Topology {
+                inputs,
+                flush_needed,
+                flushed_tx,
+                flushed_rx,
+                writes_tx,
+                writes_rx,
+            }
+    }
 }
 
 impl<'a> Topology {
-    pub fn default() -> Topology {
-        let inputs = HashMap::new();
-        let flush_needed = Arc::new(AtomicUsize::new(0));
-        let (flushed_tx, flushed_rx) = channel(1);
-        let (writes_tx, writes_rx) = channel(CHANNEL_BUFFER_SIZE);
-
-        Topology {
-            inputs,
-            flush_needed,
-            flushed_tx,
-            flushed_rx,
-            writes_tx,
-            writes_rx,
-        }
-    }
-
     pub fn read_from(&mut self, topic: &'static str) -> Stream<Key, Value> {
         let (tx, rx) = channel(CHANNEL_BUFFER_SIZE);
         self.inputs.insert(topic, tx);
 
         Stream {
             rx,
-            appends: self.writes_tx.clone(),
+            writes: self.writes_tx.clone(),
             flush_needed: self.flush_needed.clone(),
             //flushed: self.flushed_tx.clone(),
         }
@@ -142,7 +104,7 @@ impl<'a> Topology {
 
 pub struct Stream<K, V> {
     rx: Receiver<StreamMessage<K, V>>,
-    appends: Sender<StreamMessage<Key, Value>>,
+    writes: Sender<StreamWrite<Key, Value>>,
     flush_needed: Arc<AtomicUsize>,
     //flushed: Sender<()>,
 }
@@ -151,24 +113,21 @@ type Key = Vec<u8>;
 type Value = Vec<u8>;
 
 impl Stream<Key, Value> {
-    pub fn write_to(mut self, topic_name: &'static str) {
+    pub fn write_to(mut self, topic: &str) {
         self.flush_needed.fetch_add(1, Ordering::Relaxed);
+        let topic = topic.to_string();
 
         tokio::spawn(async move {
             loop {
                 match self.rx.recv().await {
                     Some(StreamMessage::Message(message)) => {
-                        log::debug!("write message to topic {}", topic_name);
-
-                        let message = message.with_topic(topic_name.to_string());
-
-                        self.appends
-                            .send(StreamMessage::Message(message))
+                        self.writes
+                            .send(StreamWrite::Write(topic.clone(), message))
                             .await
                             .expect("failed to forward message");
                     }
                     Some(StreamMessage::Flush) => {
-                        if let Err(e) = self.appends.send(StreamMessage::Flush).await {
+                        if let Err(e) = self.writes.send(StreamWrite::Flush).await {
                             panic!("failed to forward flush: {}", e);
                         }
                     }

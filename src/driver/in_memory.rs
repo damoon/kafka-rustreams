@@ -1,5 +1,7 @@
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use crate::StreamWrite;
+
 use super::super::{Message, Topology};
 use super::{Key, StreamMessage, Value};
 
@@ -40,14 +42,10 @@ impl super::Driver for Driver {
         }
     }
 
-    async fn write(&self, message: Message<Key, Value>) {
-        log::debug!("write test message to topic {}", message.topic);
-
-        let topic_name = message.topic.clone();
-
+    async fn write(&self, topic: &str, message: Message<Key, Value>) {
         self.inputs
-            .get(topic_name.as_str())
-            .unwrap_or_else(|| panic!("failed to look up input stream {}", topic_name))
+            .get(topic)
+            .unwrap_or_else(|| panic!("failed to look up input stream {}", topic))
             .send(StreamMessage::Message(message))
             .await
             .expect("failed to write message")
@@ -68,13 +66,10 @@ impl Driver {
         tokio::spawn(async move {
             loop {
                 match writes_rx.recv().await {
-                    Some(StreamMessage::Message(message)) => {
-                        log::debug!("message created for topic {}", message.topic);
-
-                        let topic_name = message.topic.clone();
+                    Some(StreamWrite::Write(topic_name, message)) => {
                         let topic = inputs.get(topic_name.as_str());
                         match topic {
-                            None => log::debug!("droping message for topic {}", message.topic),
+                            None => log::debug!("droping message for topic {topic_name}"),
                             Some(sender) => {
                                 sender
                                     .send(StreamMessage::Message(message))
@@ -85,7 +80,7 @@ impl Driver {
 
                         reflush_needed_ref.store(true, Ordering::SeqCst);
                     }
-                    Some(StreamMessage::Flush) => {
+                    Some(StreamWrite::Flush) => {
                         flushed_tx.send(()).await.expect("failed to ack flush")
                     }
                     None => {

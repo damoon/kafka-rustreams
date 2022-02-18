@@ -83,7 +83,7 @@ impl Driver {
 
 #[async_trait]
 impl super::Driver for Driver {
-    async fn write(&self, _msg: Message<Key, Value>) {
+    async fn write(&self, _topic: &str, _msg: Message<Key, Value>) {
         // TODO
     }
 
