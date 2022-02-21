@@ -9,10 +9,15 @@ use rustreams::Topology;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::Builder::new()
+        .parse_env("RUST_LOG")
+        .format_timestamp_millis()
+        .init();
+
     let mut topology = Topology::default();
 
-    let input1 = topology.read_from("input1"); // TODO only allow one stream per topic
-    let input2 = topology.read_from("input2");
+    let input1 = topology.read_from::<String, String>("input1"); // TODO only allow one stream per topic
+    let input2 = topology.read_from::<String, String>("input2");
 
     let length2 = input2
         .map(|s: &Vec<u8>| -> usize { s.len() })
@@ -29,7 +34,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         timestamp: Timestamp::NotAvailable,
     };
 
-    app.write("topic", msg).await;
+    app.write("input1", msg).await;
+    app.write("input2", msg).await;
 
     signal::ctrl_c().await?;
 

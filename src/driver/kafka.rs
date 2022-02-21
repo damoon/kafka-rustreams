@@ -1,6 +1,7 @@
-use crate::{Key, Message, Value};
+use crate::{Message};
 
 use super::super::Topology;
+use rdkafka::message::ToBytes;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
@@ -42,7 +43,7 @@ impl Driver {
 
 #[async_trait]
 impl super::Driver for Driver {
-    async fn write(&self, _topic: &str, _msg: Message<Key, Value>) {
+    async fn write<K: ToBytes+ std::marker::Send, V: ToBytes + std::marker::Send>(&self, _topic: &str, _msg: Message<K, V>) {
         // TODO
     }
 
