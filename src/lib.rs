@@ -1,11 +1,7 @@
-use rdkafka::message::{FromBytes, ToBytes};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-
-use std::collections::HashMap;
-
-use std::fmt::Debug;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use async_std::{channel::{bounded as channel, Receiver, Sender}, task::spawn};
+use std::{collections::HashMap, ops::Deref};
+use std::fmt::{Debug, Error};
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 
 // use rdkafka::message::{Message, OwnedMessage};
 pub use rdkafka::message::Timestamp;
@@ -69,8 +65,8 @@ impl Default for Topology {
 
 impl Topology {
     pub fn read_from<
-        K: 'static + Send + Debug + Clone + FromBytes<Error = &'static dyn Debug>,
-        V: 'static + Send + Debug + Clone + FromBytes<Error = &'static dyn Debug>,
+        K: FromBytes,
+        V: FromBytes,
     >(
         &mut self,
         topic: &'static str,
@@ -89,9 +85,9 @@ impl Topology {
 
         let (ti, rx) = channel::<StreamMessage<K, V>>(CHANNEL_BUFFER_SIZE);
 
-        tokio::spawn(async move {
+        spawn(async move {
             // until shutting down
-            while let Some(m) = ri.recv().await {
+            while let Ok(m) = ri.recv().await {
                 match m {
                     StreamMessage::Flush => {
                         ti.send(StreamMessage::Flush)
@@ -132,43 +128,40 @@ impl Topology {
         }
     }
 
-    async fn flush(
-        &mut self, //         inputs: HashMap<&str, Sender<StreamMessage<Key, Value>>>,
-                   //         flush_needed: Arc<AtomicUsize>,
-                   //         flushed_rx: &mut Receiver<()>
-    ) {
+    async fn flush(&mut self, persist: fn(topic: &str, msg: Message<Vec<u8>, Vec<u8>>) -> Result<(), Error>) {
         log::debug!("flushing");
 
-        let mut flush_signals = 0;
-
-        for inputs in self.inputs.iter() {
-            log::debug!("request flush");
-
+        for inputs in self.inputs.iter() {            
             for input in inputs.1.iter() {
-                flush_signals += 1;
+                log::debug!("send flush message for {}", inputs.0);
+
                 input
                     .send(StreamMessage::Flush)
                     .await
                     .expect("failed to trigger flush");
             }
-
-            log::debug!("requested flush");
         }
 
-        let expected_acks = flush_signals * self.flush_needed.load(Ordering::Relaxed);
+        let mut expected_acks = self.flush_needed.load(Ordering::SeqCst);
 
         log::debug!("await {} flushes", expected_acks);
 
-        for _ in 0..expected_acks {
-            log::debug!("await flush ack");
-
-            self.flushed_rx
-                .recv()
-                .await
-                .expect("failed to receive flush acknowledge");
+        while let Ok(m) = self.writes_rx.recv().await {
+            match m {
+                StreamWrite::Flush => {
+                    expected_acks -= 1;
+                    log::debug!("await {} flushes", expected_acks);
+                    if expected_acks == 0 {
+                        return
+                    }
+                },
+                StreamWrite::Write(topic, msg) => {
+                    persist(topic, msg).expect("failed to persist message")
+                },
+            }
         }
 
-        log::debug!("all flushes acked");
+        panic!("writes channel was closed during flush")
     }
 }
 
@@ -183,10 +176,10 @@ impl<K: 'static + Send + Debug + Clone + ToBytes, V: 'static + Send + Debug + Cl
     Stream<K, V>
 {
     pub fn write_to(mut self, topic: &'static str) {
-        self.flush_needed.fetch_add(1, Ordering::Relaxed);
+        self.flush_needed.fetch_add(1, Ordering::SeqCst);
 
-        tokio::spawn(async move {
-            while let Some(m) = self.rx.recv().await {
+        spawn(async move {
+            while let Ok(m) = self.rx.recv().await {
                 match m {
                     StreamMessage::Flush => {
                         self.writes
@@ -214,4 +207,98 @@ impl<K: 'static + Send + Debug + Clone + ToBytes, V: 'static + Send + Debug + Cl
             }
         });
     }
+}
+
+
+/// A cheap conversion from a byte slice to typed data.
+///
+/// Given a reference to a byte slice, returns a different view of the same
+/// data. No allocation is performed, however the underlying data might be
+/// checked for correctness (for example when converting to `str`).
+///
+/// See also the [`ToBytes`] trait.
+pub trait FromBytes {
+    /// The error type that will be returned if the conversion fails.
+    type Error;
+    /// Tries to convert the provided byte slice into a different type.
+    fn from_bytes(_: &[u8]) -> Result<&Self, Self::Error>;
+}
+
+impl FromBytes for [u8] {
+    type Error = ();
+    fn from_bytes(bytes: &[u8]) -> Result<&Self, Self::Error> {
+        Ok(bytes)
+    }
+}
+
+impl FromBytes for str {
+    type Error = std::str::Utf8Error;
+    fn from_bytes(bytes: &[u8]) -> Result<&Self, Self::Error> {
+        std::str::from_utf8(bytes)
+    }
+}
+
+/// A cheap conversion from typed data to a byte slice.
+///
+/// Given some data, returns the byte representation of that data.
+/// No copy of the data should be performed.
+///
+/// See also the [`FromBytes`] trait.
+pub trait ToBytes {
+    /// Converts the provided data to bytes.
+    fn to_bytes(&self) -> &[u8];
+}
+
+impl ToBytes for [u8] {
+    fn to_bytes(&self) -> &[u8] {
+        self
+    }
+}
+
+impl ToBytes for str {
+    fn to_bytes(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
+impl ToBytes for Vec<u8> {
+    fn to_bytes(&self) -> &[u8] {
+        self.as_slice()
+    }
+}
+
+impl ToBytes for String {
+    fn to_bytes(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
+impl<'a, T: ToBytes> ToBytes for &'a T {
+    fn to_bytes(&self) -> &[u8] {
+        (*self).to_bytes()
+    }
+}
+
+impl ToBytes for () {
+    fn to_bytes(&self) -> &[u8] {
+        &[]
+    }
+}
+
+// Implement to_bytes for arrays - https://github.com/rust-lang/rfcs/issues/1038
+macro_rules! array_impls {
+    ($($N:expr)+) => {
+        $(
+            impl ToBytes for [u8; $N] {
+                fn to_bytes(&self) -> &[u8] { self }
+            }
+         )+
+    }
+}
+
+array_impls! {
+     0  1  2  3  4  5  6  7  8  9
+    10 11 12 13 14 15 16 17 18 19
+    20 21 22 23 24 25 26 27 28 29
+    30 31 32
 }

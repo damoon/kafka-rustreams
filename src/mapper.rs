@@ -1,6 +1,5 @@
-use tokio::sync::mpsc::channel;
-
-use super::{Stream, StreamMessage};
+use crate::{Stream, StreamMessage};
+use async_std::{channel::{bounded as channel}, task::spawn};
 
 pub trait Mapper<K, V1, V2> {
     fn map(self, m: impl Send + 'static + Fn(&V1) -> V2) -> Stream<K, V2>;
@@ -13,10 +12,10 @@ impl<K: Send + 'static, V1: Send + 'static, V2: Send + 'static> Mapper<K, V1, V2
         let (tx, rx) = channel::<StreamMessage<K, V2>>(1);
         let mut source = self.rx;
 
-        tokio::spawn(async move {
-            loop {
-                match source.recv().await {
-                    Some(StreamMessage::Message(message)) => {
+        spawn(async move {
+            while let Ok(m) = source.recv().await {
+                match m {
+                    StreamMessage::Message(message) => {
                         let new_payload: Option<V2> = message.value.as_ref().map(&map);
                         let new_message = message.with_value(new_payload);
 
@@ -24,14 +23,10 @@ impl<K: Send + 'static, V1: Send + 'static, V2: Send + 'static> Mapper<K, V1, V2
                             panic!("forward message failed: {}", e);
                         }
                     }
-                    Some(StreamMessage::Flush) => {
+                    StreamMessage::Flush => {
                         if let Err(e) = tx.send(StreamMessage::Flush).await {
                             panic!("forward flush failed: {}", e);
                         }
-                    }
-                    None => {
-                        log::debug!("close map thread");
-                        return;
                     }
                 };
             }
