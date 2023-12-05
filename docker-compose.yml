@@ -19,7 +19,7 @@ services:
       - zookeeper
 
   postgres:
-    image: postgres:13.2-alpine
+    image: postgres:13.13-alpine
     ports:
       - 5432:5432
     environment:
